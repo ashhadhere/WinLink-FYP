@@ -1,0 +1,16 @@
+# Ignore PyInstaller build folders
+dist/
+build/
+__pycache__/
+*.spec
+
+# Ignore Python environment (if any)
+venv/
+.env/
+
+# Ignore compiled files
+*.pyc
+*.pyo
+
+# Optional: Windows Thumbs
+Thumbs.db
