@@ -1,14 +1,14 @@
-import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 from role_select import RoleSelectScreen
+from assets.styles import STYLE_SHEET  # ✅ Import the shared stylesheet
 
 class WelcomeScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WinLink")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(720, 520)
         self.setStyleSheet("background-color: #121212; color: white;")
         layout = QVBoxLayout()
 
@@ -23,6 +23,7 @@ class WelcomeScreen(QWidget):
         btn = QPushButton("Get Started")
         btn.setFixedHeight(40)
         btn.setStyleSheet("background-color: #1f5c5c; color: white; font-size: 16px; border-radius: 8px;")
+        btn.setFocusPolicy(Qt.NoFocus)
         btn.clicked.connect(self.open_role_screen)
 
         layout.addStretch()
@@ -39,7 +40,10 @@ class WelcomeScreen(QWidget):
         self.close()
 
 if __name__ == "__main__":
+    import sys
     app = QApplication(sys.argv)
+    from assets.styles import STYLE_SHEET
+    app.setStyleSheet(STYLE_SHEET)  # ✅ Set it once globally
     win = WelcomeScreen()
     win.show()
     sys.exit(app.exec_())

@@ -1,75 +1,37 @@
 from PyQt5 import QtWidgets, QtGui, QtCore
 import sys, socket, threading
 
-STYLE_SHEET = """
-QWidget#mainWindow {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #1f1f2f, stop:1 #101018);
-    color: white;
-    font-family: 'Segoe UI', sans-serif;
-}
-QFrame[glass="true"] {
-    background-color: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 14px;
-    padding: 16px;
-}
-QLabel#headerLabel {
-    font-size: 24px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    color: #00ffe0;
-}
-QLabel#infoLabel {
-    font-size: 13px;
-    color: #cccccc;
-}
-QPushButton {
-    font-size: 14px;
-    padding: 8px 20px;
-    border-radius: 8px;
-}
-QPushButton#startBtn {
-    background-color: #00c853;
-    color: white;
-}
-QPushButton#stopBtn {
-    background-color: #c62828;
-    color: white;
-}
-QLineEdit {
-    padding: 6px;
-    border-radius: 6px;
-    background-color: #f2f0f0;
-    color: black;
-}
-"""
+
 
 class MasterUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("mainWindow")
         self.setWindowTitle("WinLink – Master PC")
-        self.setMinimumSize(640, 460)
+        self.setMinimumSize(720, 520)
 
         self.running = False
         self.client_socket = None
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(30)
 
-        # Header
-        title = QtWidgets.QLabel("WinLink – Master PC")
+        title = QtWidgets.QLabel("WinLink")
         title.setObjectName("headerLabel")
         title.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Connection Input
-        self.info_card = QtWidgets.QFrame()
-        self.info_card.setProperty("glass", True)
-        info_layout = QtWidgets.QVBoxLayout(self.info_card)
-        info_layout.setSpacing(10)
+        sub_heading = QtWidgets.QLabel("Connected PC")
+        sub_heading.setObjectName("subHeaderLabel")
+        sub_heading.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(sub_heading)
+
+        # Input Card
+        self.input_card = QtWidgets.QFrame()
+        self.input_card.setProperty("glass", True)
+        input_layout = QtWidgets.QVBoxLayout(self.input_card)
+        input_layout.setSpacing(14)
 
         self.ip_input = QtWidgets.QLineEdit()
         self.ip_input.setPlaceholderText("Enter Worker IP (e.g. 192.168.1.10)")
@@ -77,27 +39,26 @@ class MasterUI(QtWidgets.QWidget):
         self.port_input.setPlaceholderText("Enter Port (e.g. 5001)")
         self.port_input.setValidator(QtGui.QIntValidator(1, 65535))
 
-        info_layout.addWidget(self.ip_input)
-        info_layout.addWidget(self.port_input)
-        self.info_card.setLayout(info_layout)
-        layout.addWidget(self.info_card)
+        input_layout.addWidget(self.ip_input)
+        input_layout.addWidget(self.port_input)
+        layout.addWidget(self.input_card)
 
-        # Status
+        # Status Card
         self.status_card = QtWidgets.QFrame()
         self.status_card.setProperty("glass", True)
         status_layout = QtWidgets.QVBoxLayout(self.status_card)
-        status_layout.setSpacing(8)
+        status_layout.setSpacing(10)
 
         self.status_label = QtWidgets.QLabel("Status: 🔴 Idle")
-        self.status_label.setObjectName("infoLabel")
+        self.status_label.setObjectName("dataLabel")
         self.data_label = QtWidgets.QLabel("Waiting for data...")
-        self.data_label.setObjectName("infoLabel")
+        self.data_label.setObjectName("dataLabel")
 
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.data_label)
         layout.addWidget(self.status_card)
 
-        # Buttons
+        # Action Buttons
         button_row = QtWidgets.QHBoxLayout()
         self.connect_btn = QtWidgets.QPushButton("Connect")
         self.connect_btn.setObjectName("startBtn")
@@ -108,9 +69,21 @@ class MasterUI(QtWidgets.QWidget):
         self.disconnect_btn.clicked.connect(self.disconnect_from_worker)
         self.disconnect_btn.setEnabled(False)
 
+        button_row.addStretch(1)
         button_row.addWidget(self.connect_btn)
         button_row.addWidget(self.disconnect_btn)
+        button_row.addStretch(1)
         layout.addLayout(button_row)
+
+        self.apply_shadow(self.input_card)
+        self.apply_shadow(self.status_card)
+
+    def apply_shadow(self, widget):
+        shadow = QtWidgets.QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QtGui.QColor(0, 0, 0, 160))
+        widget.setGraphicsEffect(shadow)
 
     def connect_to_worker(self):
         ip = self.ip_input.text().strip()
@@ -126,9 +99,7 @@ class MasterUI(QtWidgets.QWidget):
             self.connect_btn.setEnabled(False)
             self.disconnect_btn.setEnabled(True)
             self.running = True
-
             threading.Thread(target=self.receive_data, daemon=True).start()
-
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Connection Error", str(e))
             self.status_label.setText("Status: 🔴 Failed to connect")

@@ -9,7 +9,7 @@ class RoleSelectScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Select Role - WinLink")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(720, 520)
         self.setStyleSheet("background-color: #121212; color: white;")
 
         layout = QVBoxLayout()
@@ -32,6 +32,7 @@ class RoleSelectScreen(QWidget):
             }
         """)
         master_button.clicked.connect(self.launch_master)
+        master_button.setFocusPolicy(Qt.NoFocus)
 
         worker_button = QPushButton("Worker PC")
         worker_button.setStyleSheet("""
@@ -47,6 +48,7 @@ class RoleSelectScreen(QWidget):
             }
         """)
         worker_button.clicked.connect(self.launch_worker)
+        worker_button.setFocusPolicy(Qt.NoFocus)
 
         btn_row = QHBoxLayout()
         btn_row.addWidget(master_button)
