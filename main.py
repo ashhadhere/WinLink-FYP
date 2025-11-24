@@ -1,49 +1,83 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QLabel, QPushButton,
+    QVBoxLayout, QGraphicsDropShadowEffect
+)
 from PyQt5.QtCore import Qt
-from role_select import RoleSelectScreen
-from assets.styles import STYLE_SHEET  # ✅ Import the shared stylesheet
+from PyQt5.QtGui import QColor
+from role_select import RoleSelectScreen  # your existing import
+from assets.styles import STYLE_SHEET
 
 class WelcomeScreen(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("WinLink")
-        self.setFixedSize(720, 520)
-        self.setStyleSheet("background-color: #121212; color: white;")
-        layout = QVBoxLayout()
+        self.setObjectName("welcomeScreen")
+        self.setWindowTitle("WinLink - Distributed Computing Platform")
+        self.setFixedSize(1000, 750)
+        self.setStyleSheet(STYLE_SHEET)
 
-        title = QLabel("Welcome to")
-        title.setFont(QFont("Helvetica", 18))
-        title.setAlignment(Qt.AlignCenter)
+        self._build_ui()
+        self._center()
+        self.show()
 
-        brand = QLabel("WinLink")
-        brand.setFont(QFont("Helvetica", 32, QFont.Bold))
-        brand.setAlignment(Qt.AlignCenter)
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(80, 80, 80, 80)
+        layout.setSpacing(40)
 
-        btn = QPushButton("Get Started")
-        btn.setFixedHeight(40)
-        btn.setStyleSheet("background-color: #1f5c5c; color: white; font-size: 16px; border-radius: 8px;")
-        btn.setFocusPolicy(Qt.NoFocus)
-        btn.clicked.connect(self.open_role_screen)
+        # Title
+        self.title = QLabel("Welcome to")
+        self.title.setObjectName("title")
+        self.title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title)
 
-        layout.addStretch()
-        layout.addWidget(title)
-        layout.addWidget(brand)
-        layout.addStretch()
-        layout.addWidget(btn)
-        layout.addStretch()
-        self.setLayout(layout)
+        # Brand
+        self.brand = QLabel("WinLink")
+        self.brand.setObjectName("brand")
+        self.brand.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.brand)
+
+        # Subtitle
+        self.subtitle = QLabel("Distributed Computing Platform")
+        self.subtitle.setObjectName("subtitle")
+        self.subtitle.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.subtitle)
+
+        # Features
+        self.features = QLabel(
+            "✨ Connect Multiple PCs  •  🚀 Distribute Heavy Tasks  •  ⚡ Real-time Monitoring"
+        )
+        self.features.setObjectName("features")
+        self.features.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.features)
+
+        # Get Started button
+        self.btn = QPushButton("Get Started")
+        self.btn.setObjectName("getStartedBtn")
+        self.btn.setFixedSize(280, 70)
+        self.btn.clicked.connect(self.open_role_screen)
+
+        # Add subtle shadow
+        shadow = QGraphicsDropShadowEffect(blurRadius=25, xOffset=0, yOffset=8, color=QColor(0, 0, 0, 150))
+        self.btn.setGraphicsEffect(shadow)
+
+        # Add button centered in main layout
+        layout.addWidget(self.btn, alignment=Qt.AlignCenter)
+
+    def _center(self):
+        # Center the window on screen
+        qr = self.frameGeometry()
+        cp = QApplication.desktop().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
 
     def open_role_screen(self):
         self.role_screen = RoleSelectScreen()
         self.role_screen.show()
         self.close()
 
+
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
-    from assets.styles import STYLE_SHEET
-    app.setStyleSheet(STYLE_SHEET)  # ✅ Set it once globally
     win = WelcomeScreen()
-    win.show()
     sys.exit(app.exec_())

@@ -1,89 +1,187 @@
+import sys, os, json, threading, time
 from PyQt5 import QtWidgets, QtGui, QtCore
-import sys, socket, threading
+from PyQt5.QtWidgets import QHeaderView, QSplitter
 
+# Fix module path for core & assets
+sys.path.append(os.path.abspath(os.path.join(__file__, "..", "..")))
 
+# Now import modules
+from assets.styles import STYLE_SHEET
+from core.task_manager import TaskManager, TASK_TEMPLATES, TaskStatus, TaskType
+from core.network import MasterNetwork, MessageType
 
 class MasterUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("mainWindow")
-        self.setWindowTitle("WinLink – Master PC")
-        self.setMinimumSize(720, 520)
+        self.setWindowTitle("WinLink – Master PC (Enhanced)")
+        self.setMinimumSize(1000, 600)
+        self.resize(1200, 800)
+        self.setStyleSheet(STYLE_SHEET)
 
-        self.running = False
-        self.client_socket = None
+        # Core
+        self.task_manager = TaskManager()
+        self.network = MasterNetwork()
+        self.worker_resources = {}
+        self.worker_resources_lock = threading.Lock()
+        self.monitoring_active = True
 
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(30)
+        self.network.register_handler(MessageType.PROGRESS_UPDATE, self.handle_progress_update)
+        self.network.register_handler(MessageType.TASK_RESULT, self.handle_task_result)
+        self.network.register_handler(MessageType.RESOURCE_DATA, self.handle_resource_data)
+        self.network.register_handler(MessageType.READY, self.handle_worker_ready)
+        self.network.register_handler(MessageType.ERROR, self.handle_worker_error)
+        self.network.start()
 
-        title = QtWidgets.QLabel("WinLink")
-        title.setObjectName("headerLabel")
-        title.setAlignment(QtCore.Qt.AlignCenter)
-        layout.addWidget(title)
+        # UI
+        self.setup_ui()
+        self.start_monitoring_thread()
 
-        sub_heading = QtWidgets.QLabel("Connected PC")
-        sub_heading.setObjectName("subHeaderLabel")
-        sub_heading.setAlignment(QtCore.Qt.AlignCenter)
-        layout.addWidget(sub_heading)
+    def setup_ui(self):
+        main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(10)
 
-        # Input Card
-        self.input_card = QtWidgets.QFrame()
-        self.input_card.setProperty("glass", True)
-        input_layout = QtWidgets.QVBoxLayout(self.input_card)
-        input_layout.setSpacing(14)
+        # Use splitter for responsive layout
+        splitter = QSplitter(QtCore.Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(8)
+        left = self.create_worker_panel()
+        right = self.create_task_panel()
+        splitter.addWidget(left)
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        splitter.setSizes([400, 800])  # Initial sizes
+        main_layout.addWidget(splitter)
 
-        self.ip_input = QtWidgets.QLineEdit()
-        self.ip_input.setPlaceholderText("Enter Worker IP (e.g. 192.168.1.10)")
-        self.port_input = QtWidgets.QLineEdit()
-        self.port_input.setPlaceholderText("Enter Port (e.g. 5001)")
-        self.port_input.setValidator(QtGui.QIntValidator(1, 65535))
+    def create_worker_panel(self):
+        panel = QtWidgets.QFrame()
+        panel.setProperty("glass", True)
+        lay = QtWidgets.QVBoxLayout(panel)
+        lay.setSpacing(12)
 
-        input_layout.addWidget(self.ip_input)
-        input_layout.addWidget(self.port_input)
-        layout.addWidget(self.input_card)
+        hdr = QtWidgets.QLabel("Worker Management", panel)
+        hdr.setObjectName("headerLabel")
+        hdr.setAlignment(QtCore.Qt.AlignCenter)
+        lay.addWidget(hdr)
 
-        # Status Card
-        self.status_card = QtWidgets.QFrame()
-        self.status_card.setProperty("glass", True)
-        status_layout = QtWidgets.QVBoxLayout(self.status_card)
-        status_layout.setSpacing(10)
-
-        self.status_label = QtWidgets.QLabel("Status: 🔴 Idle")
-        self.status_label.setObjectName("dataLabel")
-        self.data_label = QtWidgets.QLabel("Waiting for data...")
-        self.data_label.setObjectName("dataLabel")
-
-        status_layout.addWidget(self.status_label)
-        status_layout.addWidget(self.data_label)
-        layout.addWidget(self.status_card)
-
-        # Action Buttons
-        button_row = QtWidgets.QHBoxLayout()
-        self.connect_btn = QtWidgets.QPushButton("Connect")
-        self.connect_btn.setObjectName("startBtn")
+        # Add Worker
+        grp = QtWidgets.QGroupBox("Add Worker", panel)
+        g_l = QtWidgets.QVBoxLayout(grp)
+        self.ip_input = QtWidgets.QLineEdit(); self.ip_input.setPlaceholderText("IP")
+        self.port_input = QtWidgets.QLineEdit(); self.port_input.setPlaceholderText("Port")
+        self.port_input.setValidator(QtGui.QIntValidator(1,65535))
+        self.connect_btn = QtWidgets.QPushButton("Connect"); self.connect_btn.setObjectName("startBtn")
         self.connect_btn.clicked.connect(self.connect_to_worker)
+        for w in (self.ip_input, self.port_input, self.connect_btn):
+            g_l.addWidget(w)
+        lay.addWidget(grp)
 
-        self.disconnect_btn = QtWidgets.QPushButton("Disconnect")
-        self.disconnect_btn.setObjectName("stopBtn")
-        self.disconnect_btn.clicked.connect(self.disconnect_from_worker)
+        # Connected Workers
+        wgrp = QtWidgets.QGroupBox("Connected Workers", panel)
+        w_l = QtWidgets.QVBoxLayout(wgrp)
+        self.workers_list = QtWidgets.QListWidget()
+        self.disconnect_btn = QtWidgets.QPushButton("Disconnect"); self.disconnect_btn.setObjectName("stopBtn")
         self.disconnect_btn.setEnabled(False)
+        self.disconnect_btn.clicked.connect(self.disconnect_selected_worker)
+        self.refresh_workers_btn = QtWidgets.QPushButton("Refresh"); 
+        self.refresh_workers_btn.clicked.connect(self.refresh_workers)
+        w_l.addWidget(self.workers_list)
+        btn_h = QtWidgets.QHBoxLayout()
+        btn_h.addWidget(self.disconnect_btn); btn_h.addWidget(self.refresh_workers_btn)
+        w_l.addLayout(btn_h)
+        lay.addWidget(wgrp)
 
-        button_row.addStretch(1)
-        button_row.addWidget(self.connect_btn)
-        button_row.addWidget(self.disconnect_btn)
-        button_row.addStretch(1)
-        layout.addLayout(button_row)
+        # Worker Resources Display
+        rgrp = QtWidgets.QGroupBox("Worker Resources", panel)
+        r_l = QtWidgets.QVBoxLayout(rgrp)
+        self.resource_display = QtWidgets.QTextEdit()
+        self.resource_display.setReadOnly(True)
+        self.resource_display.setMinimumHeight(100)
+        self.resource_display.setMaximumHeight(200)
+        self.resource_display.setPlainText("No worker resources available yet.\nConnect workers and wait for resource updates.")
+        r_l.addWidget(self.resource_display)
+        lay.addWidget(rgrp)
 
-        self.apply_shadow(self.input_card)
-        self.apply_shadow(self.status_card)
+        self.workers_list.itemSelectionChanged.connect(self.on_worker_selection_changed)
+        return panel
 
-    def apply_shadow(self, widget):
-        shadow = QtWidgets.QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(24)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QtGui.QColor(0, 0, 0, 160))
-        widget.setGraphicsEffect(shadow)
+    def create_task_panel(self):
+        panel = QtWidgets.QFrame()
+        panel.setProperty("glass", True)
+        lay = QtWidgets.QVBoxLayout(panel)
+        lay.setSpacing(12)
+
+        hdr = QtWidgets.QLabel("Task Management", panel)
+        hdr.setObjectName("headerLabel"); hdr.setAlignment(QtCore.Qt.AlignCenter)
+        lay.addWidget(hdr)
+
+        # Create Task
+        grp = QtWidgets.QGroupBox("Create Task", panel)
+        g_l = QtWidgets.QVBoxLayout(grp)
+        # Add Task Type dropdown first
+        self.task_type_combo = QtWidgets.QComboBox()
+        self.task_type_combo.addItems([t.name for t in TaskType])
+        self.task_type_combo.currentTextChanged.connect(self.on_task_type_changed)
+        g_l.addWidget(QtWidgets.QLabel("Task Type:"))
+        g_l.addWidget(self.task_type_combo)
+        
+        self.template_combo = QtWidgets.QComboBox()
+        g_l.addWidget(QtWidgets.QLabel("Template:"))
+        self.template_combo.currentTextChanged.connect(self.on_template_changed)
+        g_l.addWidget(self.template_combo)
+        self.task_description = QtWidgets.QLabel(); self.task_description.setWordWrap(True)
+        g_l.addWidget(self.task_description)
+        self.task_code_edit = QtWidgets.QTextEdit(); self.task_code_edit.setMaximumHeight(120)
+        g_l.addWidget(self.task_code_edit)
+        self.task_data_edit = QtWidgets.QTextEdit(); self.task_data_edit.setMaximumHeight(80)
+        g_l.addWidget(self.task_data_edit)
+        self.submit_task_btn = QtWidgets.QPushButton("Submit Task"); self.submit_task_btn.setObjectName("startBtn")
+        self.submit_task_btn.clicked.connect(self.submit_task)
+        g_l.addWidget(self.submit_task_btn)
+        lay.addWidget(grp)
+        
+        # Initialize templates after all widgets are created
+        self.on_task_type_changed()
+
+        # Task Queue
+        tgrp = QtWidgets.QGroupBox("Task Queue", panel)
+        t_l = QtWidgets.QVBoxLayout(tgrp)
+        self.tasks_table = QtWidgets.QTableWidget(0,7)
+        self.tasks_table.setHorizontalHeaderLabels(["ID","Type","Status","Worker","Progress","Result","Output"])
+        self.tasks_table.horizontalHeader().setStretchLastSection(True)
+        self.tasks_table.setColumnWidth(0, 70)   # ID column
+        self.tasks_table.setColumnWidth(1, 90)   # Type column
+        self.tasks_table.setColumnWidth(2, 80)   # Status column
+        self.tasks_table.setColumnWidth(3, 120)  # Worker column
+        self.tasks_table.setColumnWidth(4, 70)   # Progress column
+        self.tasks_table.setColumnWidth(5, 180)  # Result column
+        self.tasks_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)  # Output column stretches
+        self.tasks_table.setAlternatingRowColors(True)
+        self.tasks_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.tasks_table.setWordWrap(True)  # Enable word wrap
+        self.tasks_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        t_l.addWidget(self.tasks_table)
+        clear_btn = QtWidgets.QPushButton("Clear Completed"); clear_btn.setObjectName("stopBtn")
+        clear_btn.clicked.connect(self.clear_completed_tasks)
+        t_l.addWidget(clear_btn, alignment=QtCore.Qt.AlignRight)
+        lay.addWidget(tgrp)
+
+        return panel
+
+    def start_monitoring_thread(self):
+        def monitor():
+            while self.monitoring_active:
+                for worker_id in self.network.get_connected_workers():
+                    self.network.request_resources_from_worker(worker_id)
+                time.sleep(3)
+        threading.Thread(target=monitor, daemon=True).start()
+
+    # ─── Event Handlers ───
+
+    def on_worker_selection_changed(self):
+        self.disconnect_btn.setEnabled(bool(self.workers_list.selectedItems()))
 
     def connect_to_worker(self):
         ip = self.ip_input.text().strip()
@@ -91,45 +189,353 @@ class MasterUI(QtWidgets.QWidget):
         if not ip or not port:
             QtWidgets.QMessageBox.warning(self, "Missing Info", "Enter both IP and Port")
             return
+        worker_id = f"{ip}:{port}"
+        connected = self.network.connect_to_worker(worker_id, ip, int(port))
+        if not connected:
+            QtWidgets.QMessageBox.critical(self, "Connection Failed", f"Could not connect to {worker_id}")
+        else:
+            QtWidgets.QMessageBox.information(self, "Connected", f"Connected to {worker_id}")
+            # Request resources immediately after connection
+            QtCore.QTimer.singleShot(500, lambda: self.network.request_resources_from_worker(worker_id))
+        self.refresh_workers_async()
+
+    def refresh_workers(self):
+        self.workers_list.clear()
+        for worker_id, info in self.network.get_connected_workers().items():
+            entry = f"{info['ip']}:{info['port']}"
+            self.workers_list.addItem(entry)
+
+    def disconnect_selected_worker(self):
+        sel = self.workers_list.currentItem()
+        if sel:
+            # Get IP:Port from list item
+            ip_port = sel.text()
+            # Find the worker_id that matches this IP:Port
+            worker_id = None
+            for wid, info in self.network.get_connected_workers().items():
+                if f"{info['ip']}:{info['port']}" == ip_port:
+                    worker_id = wid
+                    break
+            if worker_id:
+                self.network.disconnect_worker(worker_id)
+                # Remove from resources
+                with self.worker_resources_lock:
+                    self.worker_resources.pop(worker_id, None)
+            self.refresh_workers_async()
+
+    def on_task_type_changed(self):
+        """Update template dropdown based on selected task type"""
+        selected_type_name = self.task_type_combo.currentText()
+        try:
+            selected_type = TaskType[selected_type_name]
+        except KeyError:
+            return
+        
+        # Filter templates by task type
+        self.template_combo.clear()
+        for template_key, template_data in TASK_TEMPLATES.items():
+            if template_data.get("type") == selected_type:
+                self.template_combo.addItem(template_key)
+        
+        # If no templates found, add a custom option
+        if self.template_combo.count() == 0:
+            self.template_combo.addItem("Custom")
+        
+        # Trigger template change to load first template
+        if self.template_combo.count() > 0:
+            self.on_template_changed(self.template_combo.currentText())
+    
+    def on_template_changed(self, name):
+        if not name or name == "Custom":
+            self.task_description.setText("Enter custom task code")
+            self.task_code_edit.clear()
+            self.task_data_edit.setPlainText("{}")
+            return
+            
+        desc = TASK_TEMPLATES.get(name, {}).get("description", "")
+        code = TASK_TEMPLATES.get(name, {}).get("code", "")
+        sample_data = TASK_TEMPLATES.get(name, {}).get("sample_data")
+        self.task_description.setText(desc)
+        self.task_code_edit.setPlainText(code)
+        if sample_data is not None:
+            self.task_data_edit.setPlainText(json.dumps(sample_data, indent=2))
+        else:
+            self.task_data_edit.setPlainText("{}")
+
+    def submit_task(self):
+        code = self.task_code_edit.toPlainText()
+        if not code.strip():
+            QtWidgets.QMessageBox.warning(self, "Missing Code", "Task code cannot be empty.")
+            return
+        
+        try:
+            data = json.loads(self.task_data_edit.toPlainText() or "{}")
+        except json.JSONDecodeError:
+            QtWidgets.QMessageBox.critical(self, "Invalid JSON", "Task data must be valid JSON.")
+            return
 
         try:
-            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.connect((ip, int(port)))
-            self.status_label.setText(f"Status: 🟢 Connected to {ip}:{port}")
-            self.connect_btn.setEnabled(False)
-            self.disconnect_btn.setEnabled(True)
-            self.running = True
-            threading.Thread(target=self.receive_data, daemon=True).start()
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Connection Error", str(e))
-            self.status_label.setText("Status: 🔴 Failed to connect")
+            selected_type = TaskType[self.task_type_combo.currentText()]
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self, "Invalid Task Type", "Selected task type is not valid.")
+            return
 
-    def receive_data(self):
+        if not self.network.get_connected_workers():
+            QtWidgets.QMessageBox.warning(self, "No Workers", "Connect at least one worker before submitting tasks.")
+            return
+
+        task_id = self.task_manager.create_task(selected_type, code, data)
+        if not self.dispatch_task_to_worker(task_id, code, data):
+            QtWidgets.QMessageBox.critical(self, "Dispatch Failed", "Failed to dispatch task to any worker.")
+        self.refresh_task_table_async()
+
+    def dispatch_task_to_worker(self, task_id: str, code: str, data: dict) -> bool:
+        workers = self.network.get_connected_workers()
+        if not workers:
+            return False
+
+        target_worker = self._select_worker(workers)
+        if not target_worker:
+            return False
+
+        payload = {
+            'task_id': task_id,
+            'code': code,
+            'data': data
+        }
+        sent = self.network.send_task_to_worker(target_worker, payload)
+        if sent:
+            self.task_manager.assign_task_to_worker(task_id, target_worker)
+        return sent
+
+    def _select_worker(self, workers: dict) -> str:
+        resources = self._get_worker_resources_snapshot()
+        best_worker = None
+        best_score = -1
+        for worker_id in workers.keys():
+            stats = resources.get(worker_id, {})
+            score = stats.get('memory_available_mb', 0) or 0
+            if score > best_score:
+                best_score = score
+                best_worker = worker_id
+        if not best_worker and workers:
+            best_worker = next(iter(workers.keys()))
+        return best_worker
+
+    def refresh_task_table(self):
+        tasks = sorted(self.task_manager.get_all_tasks(), key=lambda t: t.created_at, reverse=True)
+        self.tasks_table.setRowCount(len(tasks))
+        for row, t in enumerate(tasks):
+            # ID column
+            id_item = QtWidgets.QTableWidgetItem(t.id[:8])
+            self.tasks_table.setItem(row, 0, id_item)
+            
+            # Type column
+            type_item = QtWidgets.QTableWidgetItem(t.type.name)
+            self.tasks_table.setItem(row, 1, type_item)
+            
+            # Status column
+            status_item = QtWidgets.QTableWidgetItem(t.status.name)
+            self.tasks_table.setItem(row, 2, status_item)
+            
+            # Worker column - show only IP
+            worker_text = ""
+            if t.worker_id:
+                worker_text = t.worker_id.split(":")[0] if ":" in t.worker_id else t.worker_id
+            worker_item = QtWidgets.QTableWidgetItem(worker_text)
+            self.tasks_table.setItem(row, 3, worker_item)
+            
+            # Progress column
+            progress_item = QtWidgets.QTableWidgetItem(f"{t.progress}%")
+            self.tasks_table.setItem(row, 4, progress_item)
+            
+            # Result column - show formatted summary (one line, readable)
+            result_text = ""
+            if t.result is not None:
+                if isinstance(t.result, dict):
+                    # Create a readable summary
+                    result_parts = []
+                    for key, val in list(t.result.items())[:3]:  # Show first 3 items
+                        if isinstance(val, (int, float)):
+                            result_parts.append(f"{key}: {val}")
+                        elif isinstance(val, str) and len(val) < 30:
+                            result_parts.append(f"{key}: {val}")
+                        else:
+                            result_parts.append(f"{key}: ...")
+                    result_text = ", ".join(result_parts)
+                    if len(t.result) > 3:
+                        result_text += f" (+{len(t.result)-3} more)"
+                elif isinstance(t.result, (list, tuple)):
+                    if len(t.result) <= 3:
+                        result_text = str(t.result)
+                    else:
+                        result_text = str(list(t.result)[:3]) + f" ... (+{len(t.result)-3} more)"
+                else:
+                    result_str = str(t.result)
+                    result_text = result_str[:100] + ("..." if len(result_str) > 100 else "")
+            elif t.error:
+                result_text = f"Error: {t.error[:80]}"
+            else:
+                result_text = "Pending..."
+            result_item = QtWidgets.QTableWidgetItem(result_text)
+            result_item.setToolTip(result_text)  # Show full text on hover
+            self.tasks_table.setItem(row, 5, result_item)
+            
+            # Output column - show full formatted output with proper wrapping
+            output_text = ""
+            if hasattr(t, 'output') and t.output:
+                output_text = str(t.output)
+            elif t.error:
+                output_text = f"ERROR:\n{t.error}"
+            elif t.result is not None:
+                # Format result nicely for output
+                if isinstance(t.result, dict):
+                    output_lines = []
+                    for key, val in t.result.items():
+                        if isinstance(val, (dict, list)):
+                            output_lines.append(f"{key}: {json.dumps(val, indent=2)}")
+                        else:
+                            output_lines.append(f"{key}: {val}")
+                    output_text = "\n".join(output_lines)
+                elif isinstance(t.result, (list, tuple)):
+                    output_text = json.dumps(list(t.result) if isinstance(t.result, tuple) else t.result, indent=2)
+                else:
+                    output_text = str(t.result)
+            else:
+                output_text = "No output yet"
+            
+            output_item = QtWidgets.QTableWidgetItem(output_text)
+            output_item.setToolTip(output_text)  # Show full text on hover
+            # Enable word wrap for output column
+            output_item.setTextAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
+            self.tasks_table.setItem(row, 6, output_item)
+            
+            # Set row height to accommodate wrapped text
+            self.tasks_table.setRowHeight(row, max(30, len(output_text.split('\n')) * 20))
+
+    def refresh_task_table_async(self):
+        QtCore.QTimer.singleShot(0, self.refresh_task_table)
+
+    def handle_progress_update(self, worker_id, data):
+        task_id = data.get("task_id")
+        progress = data.get("progress", 0)
+        self.task_manager.update_task_progress(task_id, progress)
+        self.refresh_task_table_async()
+
+    def handle_task_result(self, worker_id, data):
+        task_id = data.get("task_id")
+        result_payload = data.get("result", {})
+        
+        # Store full output including stdout/stderr
+        task = self.task_manager.get_task(task_id)
+        if task:
+            output_parts = []
+            if result_payload.get("stdout"):
+                output_parts.append(f"STDOUT:\n{result_payload['stdout']}")
+            if result_payload.get("stderr"):
+                output_parts.append(f"STDERR:\n{result_payload['stderr']}")
+            if result_payload.get("result") is not None:
+                output_parts.append(f"RESULT:\n{json.dumps(result_payload['result'], indent=2) if isinstance(result_payload['result'], dict) else str(result_payload['result'])}")
+            
+            task.output = "\n\n".join(output_parts) if output_parts else None
+        
+        self.task_manager.update_task(task_id, worker_id, result_payload)
+        self.refresh_task_table_async()
+
+    def handle_resource_data(self, worker_id, data):
+        with self.worker_resources_lock:
+            self.worker_resources[worker_id] = data
+        
+        def format_resources():
+            snapshot = self._get_worker_resources_snapshot()
+            if not snapshot:
+                return "No worker resources available yet.\nConnect workers and wait for resource updates."
+            lines = []
+            for wid, stats in snapshot.items():
+                cpu = stats.get("cpu_percent", 0.0)
+                mem_avail = stats.get("memory_available_mb", 0.0)
+                mem_percent = stats.get("memory_percent", 0.0)
+                mem_total = stats.get("memory_total_mb", 0.0)
+                mem_used = mem_total - mem_avail if mem_total > 0 else 0
+                disk = stats.get("disk_percent", 0.0)
+                disk_free = stats.get("disk_free_gb", 0.0)
+                battery = stats.get("battery_percent")
+                plugged = stats.get("battery_plugged")
+                
+                # Extract IP from worker_id (format: "ip:port")
+                worker_ip = wid.split(":")[0] if ":" in wid else wid
+                
+                line = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                line += f"Worker: {worker_ip}\n"
+                line += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                line += f"CPU Usage: {cpu:.1f}%\n"
+                line += f"Memory Usage: {mem_percent:.1f}%\n"
+                line += f"  • Total Memory: {mem_total:.0f} MB\n"
+                line += f"  • Used Memory: {mem_used:.0f} MB\n"
+                line += f"  • Available (Unutilized) RAM: {mem_avail:.0f} MB\n"
+                line += f"Disk Usage: {disk:.1f}%\n"
+                line += f"  • Free Disk Space: {disk_free:.1f} GB\n"
+                if battery is not None:
+                    icon = "🔌" if plugged else "🔋"
+                    status = "Charging" if plugged else "Discharging"
+                    line += f"Battery: {icon} {battery:.0f}% ({status})\n"
+                else:
+                    line += f"Battery: Not Available\n"
+                lines.append(line)
+            return "\n\n".join(lines) if lines else "No worker resources available."
+        
+        QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(format_resources()))
+        self.refresh_workers_async()
+
+    def handle_worker_ready(self, worker_id, data):
+        self.network.request_resources_from_worker(worker_id)
+        self.refresh_workers_async()
+
+    def handle_worker_error(self, worker_id, data):
+        task_id = data.get("task_id")
+        error = data.get("error", "Unknown error")
+        if task_id:
+            self.task_manager.update_task(task_id, worker_id, {
+                "success": False,
+                "result": None,
+                "error": error
+            })
+            self.refresh_task_table_async()
+        QtCore.QTimer.singleShot(
+            0,
+            lambda: QtWidgets.QMessageBox.critical(
+                self,
+                "Worker Error",
+                f"Worker {worker_id} reported an error:\n{error}"
+            )
+        )
+
+    def clear_completed_tasks(self):
+        self.task_manager.clear_tasks(status=TaskStatus.COMPLETED)
+        self.refresh_task_table()
+
+    def refresh_workers_async(self):
+        QtCore.QTimer.singleShot(0, self.refresh_workers)
+
+    def _get_worker_resources_snapshot(self):
+        with self.worker_resources_lock:
+            return {wid: data.copy() for wid, data in self.worker_resources.items()}
+
+    def closeEvent(self, event: QtGui.QCloseEvent):
+        """Handle window close event - cleanup resources"""
         try:
-            while self.running:
-                data = self.client_socket.recv(1024).decode()
-                self.data_label.setText(data)
-        except:
-            self.status_label.setText("Status: 🔴 Connection Lost")
-            self.connect_btn.setEnabled(True)
-            self.disconnect_btn.setEnabled(False)
+            self.monitoring_active = False
+            # Give monitoring thread a moment to stop
+            time.sleep(0.1)
+            self.network.stop()
+        except Exception as ex:
+            print(f"Error during cleanup: {ex}")
+        finally:
+            super().closeEvent(event)
 
-    def disconnect_from_worker(self):
-        self.running = False
-        if self.client_socket:
-            try:
-                self.client_socket.shutdown(socket.SHUT_RDWR)
-                self.client_socket.close()
-            except:
-                pass
-        self.status_label.setText("Status: 🔴 Disconnected")
-        self.connect_btn.setEnabled(True)
-        self.disconnect_btn.setEnabled(False)
-        self.data_label.setText("Waiting for data...")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    app.setStyleSheet(STYLE_SHEET)
     win = MasterUI()
     win.show()
     sys.exit(app.exec_())
