@@ -214,22 +214,6 @@ Message format (example)
 }
 ```
 
-Security and sandboxing
-
-This project implements only a prototype-level sandboxing approach (restricted builtins and a module whitelist) for educational purposes. It is NOT safe for running untrusted code in a production environment. Recommended hardening (outside the repo scope):
-
-- Run tasks inside OS-level containers (Docker), restricted VMs, or separate processes with namespace / capability restrictions.
-- Use OS user isolation, cgroups, and seccomp policies for Linux.
-
-Packaging
-
-- You can package the GUIs using PyInstaller (see `requirements.txt` for the package). Typical usage:
-
-```powershell
-pip install pyinstaller
-pyinstaller --onefile --windowed main.py
-```
-
 ## Quick Overview
 
 - Master: UI to add/connect workers, create tasks from templates or custom code, monitor task queue and worker resources (`master/master_ui.py`).
@@ -311,24 +295,3 @@ Worker:
 
 - Configure which resources to share and set limits.
 - Start the worker service and copy the displayed IP:PORT to the Master.
-
-## Development & Packaging
-
-- To package the app, `pyinstaller` can be used (optional dependency in `requirements.txt`).
-
-Example:
-
-```powershell
-pip install pyinstaller
-pyinstaller --onefile --windowed --name "WinLink" main.py
-```
-
-## Troubleshooting
-
-- If workers do not connect, check Windows Firewall or antivirus blocking sockets.
-- Ensure both machines are on the same LAN and ports are reachable.
-- For task JSON errors, verify the JSON structure in the task data field.
-
-## Contributing
-
-- This project was developed as an FYP. Contributions are welcome — open an issue or PR.
