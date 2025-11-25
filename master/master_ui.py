@@ -93,37 +93,36 @@ class MasterUI(QtWidgets.QWidget):
         w_l.addLayout(btn_h)
         lay.addWidget(wgrp)
 
-        # Worker Resources Display - Enhanced with better styling
+        # Worker Resources Display - Clean and readable
         rgrp = QtWidgets.QGroupBox("Live Worker Resources", panel)
         r_l = QtWidgets.QVBoxLayout(rgrp)
         self.resource_display = QtWidgets.QTextEdit()
         self.resource_display.setReadOnly(True)
         self.resource_display.setMinimumHeight(150)
-        # Make font larger and more readable
+        # Readable font size
         font = self.resource_display.font()
-        font.setPointSize(10)  # Increase font size
-        font.setFamily("Consolas")  # Use monospace font for better alignment
+        font.setPointSize(9)  # Comfortable font size
+        font.setFamily("Consolas")  # Monospace font for alignment
         self.resource_display.setFont(font)
-        # Add styling for better readability
+        # Simple styling
         self.resource_display.setStyleSheet("""
             QTextEdit {
                 background-color: rgba(30, 30, 40, 0.6);
-                color: #ffffff;
+                color: #e0e0e0;
                 border: 1px solid rgba(100, 255, 160, 0.3);
                 border-radius: 8px;
-                padding: 12px;
-                font-size: 10pt;
-                line-height: 1.4;
+                padding: 10px;
+                font-size: 9pt;
             }
         """)
-        self.resource_display.setPlainText("🔄 Waiting for worker resources...\n\nConnect workers and data will appear here automatically.")
+        self.resource_display.setPlainText("⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here.")
         r_l.addWidget(self.resource_display)
-        lay.addWidget(rgrp)
         
-        # Add refresh button for manual resource update
+        # Add refresh button
         refresh_res_btn = QtWidgets.QPushButton("🔄 Refresh Resources")
         refresh_res_btn.clicked.connect(self.refresh_all_worker_resources)
         r_l.addWidget(refresh_res_btn)
+        lay.addWidget(rgrp)
 
         self.workers_list.itemSelectionChanged.connect(self.on_worker_selection_changed)
         return panel
@@ -218,8 +217,11 @@ class MasterUI(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Connection Failed", f"Could not connect to {worker_id}")
         else:
             QtWidgets.QMessageBox.information(self, "Connected", f"Connected to {worker_id}")
-            # Request resources immediately after connection
-            QtCore.QTimer.singleShot(500, lambda: self.network.request_resources_from_worker(worker_id))
+            # Request resources immediately and repeatedly to ensure we get data
+            self.resource_display.setPlainText(f"✅ Connected to {worker_id}\n\n🔄 Requesting resources...")
+            QtCore.QTimer.singleShot(300, lambda: self.network.request_resources_from_worker(worker_id))
+            QtCore.QTimer.singleShot(1000, lambda: self.network.request_resources_from_worker(worker_id))
+            QtCore.QTimer.singleShot(2000, lambda: self.network.request_resources_from_worker(worker_id))
         self.refresh_workers_async()
 
     def refresh_workers(self):
@@ -466,90 +468,87 @@ class MasterUI(QtWidgets.QWidget):
         self.refresh_task_table_async()
 
     def handle_resource_data(self, worker_id, data):
+        """Handle incoming resource data from workers"""
+        print(f"[DEBUG] Received resource data from {worker_id}: {list(data.keys())}")
+        
         with self.worker_resources_lock:
             self.worker_resources[worker_id] = data
         
-        def format_resources():
+        # Immediately update the display
+        self.update_resource_display()
+    
+    def update_resource_display(self):
+        """Update the resource display with current worker data"""
+        def format_and_update():
             snapshot = self._get_worker_resources_snapshot()
-            if not snapshot:
-                return "🔄 Waiting for worker resources...\n\nConnect workers and data will appear here automatically."
             
-            lines = []
+            # Check if we have connected workers but no resources yet
+            connected_workers = self.network.get_connected_workers()
+            if not snapshot and not connected_workers:
+                self.resource_display.setPlainText("⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here.")
+                return
+            elif not snapshot and connected_workers:
+                self.resource_display.setPlainText(f"🔄 Connected to {len(connected_workers)} worker(s)\n\nWaiting for resource data...")
+                return
+            
+            output = []
+            output.append(f"📊 LIVE WORKER RESOURCES - {len(snapshot)} Connected")
+            output.append(f"🕐 Updated: {time.strftime('%H:%M:%S')}")
+            output.append("=" * 50)
+            output.append("")
+            
             for wid, stats in snapshot.items():
+                # Extract worker IP
+                worker_ip = wid.split(":")[0] if ":" in wid else wid
+                
+                # Get stats
                 cpu = stats.get("cpu_percent", 0.0)
-                mem_avail = stats.get("memory_available_mb", 0.0)
                 mem_percent = stats.get("memory_percent", 0.0)
-                mem_total = stats.get("memory_total_mb", 0.0)
-                mem_used = mem_total - mem_avail if mem_total > 0 else 0
-                disk = stats.get("disk_percent", 0.0)
-                disk_free = stats.get("disk_free_gb", 0.0)
+                mem_total_mb = stats.get("memory_total_mb", 0.0)
+                mem_avail_mb = stats.get("memory_available_mb", 0.0)
+                mem_used_mb = mem_total_mb - mem_avail_mb if mem_total_mb > 0 else 0
+                disk_percent = stats.get("disk_percent", 0.0)
+                disk_free_gb = stats.get("disk_free_gb", 0.0)
                 battery = stats.get("battery_percent")
                 plugged = stats.get("battery_plugged")
                 
-                # Extract IP from worker_id (format: "ip:port")
-                worker_ip = wid.split(":")[0] if ":" in wid else wid
+                # Status indicator
+                def status(val):
+                    return "🟢" if val < 50 else "🟡" if val < 75 else "🔴"
                 
-                # Create visual indicators for resource usage
-                def get_indicator(percent):
-                    if percent < 50:
-                        return "🟢"  # Green - Good
-                    elif percent < 75:
-                        return "🟡"  # Yellow - Moderate
-                    else:
-                        return "🔴"  # Red - High
+                output.append(f"🖥️  WORKER: {worker_ip}")
+                output.append("-" * 50)
                 
-                def get_bar(percent, width=20):
-                    """Create a visual bar for percentage"""
-                    filled = int((percent / 100) * width)
-                    bar = "█" * filled + "░" * (width - filled)
-                    return bar
+                # CPU
+                output.append(f"{status(cpu)} CPU Usage:          {cpu:5.1f}%")
                 
-                line = "╔══════════════════════════════════════════════╗\n"
-                line += f"║  🖥️  WORKER: {worker_ip:<30} ║\n"
-                line += "╚══════════════════════════════════════════════╝\n\n"
+                # Memory - HIGHLIGHT UNUTILIZED RAM
+                mem_total_gb = mem_total_mb / 1024
+                mem_used_gb = mem_used_mb / 1024
+                mem_avail_gb = mem_avail_mb / 1024
+                output.append(f"{status(mem_percent)} Memory Usage:       {mem_percent:5.1f}%")
+                output.append(f"   • Total RAM:        {mem_total_gb:6.2f} GB")
+                output.append(f"   • Used RAM:         {mem_used_gb:6.2f} GB")
+                output.append(f"   💚 UNUTILIZED RAM:  {mem_avail_gb:6.2f} GB ⭐")
                 
-                # CPU with visual bar
-                cpu_indicator = get_indicator(cpu)
-                line += f"{cpu_indicator} CPU USAGE: {cpu:>5.1f}%\n"
-                line += f"   {get_bar(cpu)} \n\n"
+                # Disk
+                output.append(f"{status(disk_percent)} Disk Usage:         {disk_percent:5.1f}%")
+                output.append(f"   • Free Space:       {disk_free_gb:6.1f} GB")
                 
-                # Memory with visual bar
-                mem_indicator = get_indicator(mem_percent)
-                mem_total_gb = mem_total / 1024
-                mem_used_gb = mem_used / 1024
-                mem_avail_gb = mem_avail / 1024
-                line += f"{mem_indicator} MEMORY USAGE: {mem_percent:>5.1f}%\n"
-                line += f"   {get_bar(mem_percent)} \n"
-                line += f"   📊 Total:     {mem_total_gb:>6.2f} GB\n"
-                line += f"   📈 Used:      {mem_used_gb:>6.2f} GB\n"
-                line += f"   📉 Available: {mem_avail_gb:>6.2f} GB\n\n"
-                
-                # Disk with visual bar
-                disk_indicator = get_indicator(disk)
-                line += f"{disk_indicator} DISK USAGE: {disk:>5.1f}%\n"
-                line += f"   {get_bar(disk)} \n"
-                line += f"   💾 Free Space: {disk_free:>6.1f} GB\n\n"
-                
-                # Battery status
+                # Battery
                 if battery is not None:
                     icon = "🔌" if plugged else "🔋"
-                    status = "Charging" if plugged else "Discharging"
-                    bat_indicator = get_indicator(100 - battery if not plugged else 0)
-                    line += f"{icon} BATTERY: {battery:>5.0f}% ({status})\n"
-                    if not plugged:
-                        line += f"   {get_bar(battery)} \n"
+                    status_text = "Charging" if plugged else "On Battery"
+                    output.append(f"{icon} Battery:            {battery:5.0f}% ({status_text})")
                 else:
-                    line += "⚡ POWER: AC (No Battery)\n"
+                    output.append("⚡ Power:              AC (No Battery)")
                 
-                lines.append(line)
+                output.append("")
             
-            header = f"🔄 LIVE RESOURCES ({len(snapshot)} Worker{'s' if len(snapshot) > 1 else ''})\n"
-            header += f"Last Updated: {time.strftime('%H:%M:%S')}\n"
-            header += "═" * 48 + "\n\n"
-            
-            return header + "\n".join(lines) if lines else "No worker resources available."
+            self.resource_display.setPlainText("\n".join(output))
         
-        QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(format_resources()))
+        # Run on Qt main thread
+        QtCore.QTimer.singleShot(0, format_and_update)
         self.refresh_workers_async()
 
     def handle_worker_ready(self, worker_id, data):
@@ -586,16 +585,15 @@ class MasterUI(QtWidgets.QWidget):
         """Manually request resources from all connected workers"""
         workers = self.network.get_connected_workers()
         if not workers:
-            QtWidgets.QMessageBox.information(self, "No Workers", "No workers are currently connected.")
+            self.resource_display.setPlainText("⚠️  No workers connected.\n\nPlease connect a worker first.")
             return
         
+        # Request from all workers
         for worker_id in workers.keys():
             self.network.request_resources_from_worker(worker_id)
         
-        # Show confirmation
-        QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
-            f"🔄 Refreshing resources from {len(workers)} worker(s)...\n\nPlease wait..."
-        ))
+        # Show refreshing message
+        self.resource_display.setPlainText(f"🔄 Refreshing resources from {len(workers)} worker(s)...\n\nPlease wait...")
 
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:
