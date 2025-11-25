@@ -1,20 +1,38 @@
-# WinLink — Distributed Python Task Runner (FYP)
+# WinLink — Distributed Computing Platform (Windows)
 
-**WinLink is a lightweight distributed desktop application that enables task distribution between master and worker PCs through PyQt5 GUIs, where the master sends tasks to remote workers over TCP, and workers execute them and report completion status back with real-time system monitoring.**
+**WinLink is an advanced distributed desktop application built for Windows that enables secure task distribution between master and worker PCs. It features enterprise-grade security including TLS encryption, authentication, containerization support, advanced scheduling, and comprehensive system monitoring.**
 
-This project was developed as a Final Year Project (FYP) to demonstrate distributed computing concepts, remote task dispatch, resource sharing, and system monitoring in an educational environment.
+This project demonstrates modern distributed computing concepts with professional-grade security features, task orchestration, load balancing, and real-time monitoring capabilities designed for Windows environments.
 
-**Repository layout**
+## 🚀 Enhanced Security Features
 
-- `master/` — Master GUI and logic (`master_ui.py`) for creating tasks, connecting workers, and monitoring the task queue.
-- `worker/` — Worker GUI and logic (`worker_ui.py`) that runs the worker service, accepts tasks, and reports status.
-- `core/` — Core primitives: networking, task manager, and task executor.
-- `assets/` — Shared UI styles and assets.
-- `main.py`, `launch_enhanced.py` — Start scripts for the application.
+### Enterprise-Grade Security:
+
+- **TLS Encryption**: End-to-end encrypted communication with SSL/TLS
+- **Token Authentication**: HMAC-based authentication system
+- **Process Isolation**: Windows Job Objects for secure task execution
+- **Resource Limits**: Memory and CPU constraints for safety
+- **Containerization**: Optional Docker support for maximum isolation
+
+### Advanced Task Management:
+
+- **Priority Scheduling**: Task priority system (LOW to CRITICAL)
+- **Load Balancing**: Multiple strategies for optimal worker utilization
+- **Persistent Storage**: SQLite database for task history and logs
+- **Real-time Monitoring**: Comprehensive system and task monitoring
+- **Progress Tracking**: Live task progress and status updates
+
+### Professional Architecture:
+
+- **Modular Design**: Clean separation of concerns
+- **Windows Optimized**: Native Windows security features
+- **Scalable**: Support for multiple workers and concurrent tasks
+- **Fault Tolerant**: Graceful error handling and recovery
 
 ## 🚀 Key Features
 
 ### Master PC Capabilities:
+
 - **Task Creation & Dispatch**: Create Python tasks using built-in templates or custom code
 - **Worker Management**: Connect to multiple remote workers across the network
 - **Real-time Monitoring**: Monitor CPU, memory, and disk usage on all connected workers
@@ -22,6 +40,7 @@ This project was developed as a Final Year Project (FYP) to demonstrate distribu
 - **Resource Control**: Set CPU and memory limits for each worker
 
 ### Worker PC Capabilities:
+
 - **Task Execution**: Receive and execute Python tasks from master
 - **Resource Sharing**: Configure CPU and memory limits to share with master
 - **Status Reporting**: Report task progress and completion back to master
@@ -29,6 +48,7 @@ This project was developed as a Final Year Project (FYP) to demonstrate distribu
 - **Execution Logging**: Capture and display task output and errors
 
 ### Technical Features:
+
 - **JSON-over-TCP Protocol**: Simple and reliable communication between master and workers
 - **Multi-threading**: Concurrent task execution and UI responsiveness
 - **Cross-platform**: Works on Windows, Linux, and macOS
@@ -36,21 +56,55 @@ This project was developed as a Final Year Project (FYP) to demonstrate distribu
 - **Task Templates**: Pre-built templates for common computing tasks
 - **Safety Features**: Basic sandboxing and resource limits for task execution
 
-Requirements
+## 📋 System Requirements
 
-- Python 3.8+
-- See `requirements.txt` (PyQt5, psutil, optional PyInstaller for packaging)
+### Minimum Requirements:
 
-Installation
+- Windows 10/11 (x64)
+- Python 3.8+ (3.9+ recommended)
+- 4GB RAM minimum (8GB recommended)
+- 100MB free disk space
 
-1. Clone the repository and change to the project folder:
+### Optional for Enhanced Features:
+
+- Docker Desktop for Windows (for containerization)
+- Windows PowerShell 5.1+ (included in Windows)
+
+## 🔧 Quick Setup (Automated)
+
+**Option 1: Automated Setup (Recommended)**
+
+1. Clone the repository:
 
 ```powershell
 git clone <repository-url>
 cd WinLink-FYP
 ```
 
-2. (Optional) Create a virtual environment and activate it:
+2. Run the automated setup:
+
+```powershell
+.\setup_windows.bat
+```
+
+This will automatically:
+
+- Install all dependencies
+- Generate TLS certificates
+- Create authentication tokens
+- Run security tests
+- Launch the application
+
+**Option 2: Manual Setup**
+
+1. Clone and navigate to the project:
+
+```powershell
+git clone <repository-url>
+cd WinLink-FYP
+```
+
+2. (Recommended) Create virtual environment:
 
 ```powershell
 python -m venv .venv
@@ -60,18 +114,61 @@ python -m venv .venv
 3. Install dependencies:
 
 ```powershell
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-Running the app
+4. Generate security certificates:
 
-- Start the Master UI:
+```powershell
+python windows_setup_certificates.py
+```
+
+5. Run tests to verify setup:
+
+```powershell
+python test_windows_security.py
+```
+
+## 🚀 Running WinLink
+
+### Launch Options:
+
+**Enhanced Desktop Application (Recommended):**
+
+```powershell
+python launch_enhanced.py
+```
+
+**Role Selection Interface:**
 
 ```powershell
 python main.py
 ```
 
-- On worker machines, start the Worker UI and configure the port and resource sharing options. Then click `Start Worker` to listen for tasks.
+**Direct Master Node:**
+
+```powershell
+python launch_enhanced.py --role master
+```
+
+**Direct Worker Node:**
+
+```powershell
+python launch_enhanced.py --role worker
+```
+
+**Security Feature Demo:**
+
+```powershell
+python demo_security.py
+```
+
+### Quick Testing:
+
+```powershell
+.\test_windows.bat
+```
 
 Master UI overview (`master/master_ui.py`)
 
@@ -99,9 +196,9 @@ Message format (example)
 {
   "type": "task_submit",
   "task_id": "1234",
-  "metadata": {"name": "Example Task"},
+  "metadata": { "name": "Example Task" },
   "code": "print('Hello from worker')",
-  "resources": {"max_cpu": 50, "max_memory_mb": 512}
+  "resources": { "max_cpu": 50, "max_memory_mb": 512 }
 }
 ```
 
@@ -132,31 +229,6 @@ Packaging
 pip install pyinstaller
 pyinstaller --onefile --windowed main.py
 ```
-
-Troubleshooting
-
-- If the UI is unresponsive, ensure the Qt event loop is running and background threads report via Qt signals or timers.
-- If Workers don't appear in Master, verify firewall/port settings and that Workers are started and listening on the configured port.
-- If a task fails with an ImportError for missing modules, ensure the Worker environment has required libraries installed.
-
-Developer notes
-
-- UI files: `master/master_ui.py`, `worker/worker_ui.py` — primary places for layout and styling changes.
-- Shared styles: `assets/styles.py`.
-- Use `python -m py_compile <file>` to quickly check for syntax errors during edits.
-
-Contributing
-
-This repository was built as an academic project and is open for improvements. If you add features, please follow the existing code style and keep UI changes consistent with the project's stylesheet.
-
-Contact
-
-If you need help adapting WinLink for your environment or preparing a demo for your FYP defense, open an issue or contact the project owner.
-
----
-
-Generated by the WinLink FYP development process — updated README to reflect current project structure and usage.
-... (truncated for brevity) ...
 
 ## Quick Overview
 
@@ -200,19 +272,14 @@ pip install -r requirements.txt
 
 ## Running the App
 
-- Launch the role selector (recommended):
-
-```powershell
-python main.py
-```
-
-- Or run an enhanced launcher (if present):
+- Run the Application:
 
 ```powershell
 python launch_enhanced.py
 ```
 
 Notes:
+
 - To run the Master UI directly: `python master/master_ui.py`
 - To run the Worker UI directly: `python worker/worker_ui.py`
 
@@ -235,11 +302,13 @@ WinLink-FYP/
 ## Usage Basics
 
 Master:
+
 - Connect workers by entering their IP and port.
 - Create tasks using templates or by pasting Python code.
 - Submit tasks and watch the Task Queue update (progress/results).
 
 Worker:
+
 - Configure which resources to share and set limits.
 - Start the worker service and copy the displayed IP:PORT to the Master.
 

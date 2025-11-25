@@ -1,5 +1,13 @@
 # Requirements
 PyQt5>=5.15.0
 psutil>=5.8.0
+
+# Container and Security Support (Optional - for Docker Desktop)
+docker>=6.0.0
+cryptography>=3.4.8
+PyOpenSSL>=22.0.0
+
+# Database Support (sqlite3 is built into Python)
+
 # Optional (for building executables)
 pyinstaller>=5.0

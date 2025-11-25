@@ -26,8 +26,16 @@ class WorkerUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("mainWindow")
-        self.setWindowTitle("WinLink – Worker PC (Enhanced)")
-        self.setMinimumSize(800, 600)
+        self.setWindowTitle("WinLink – Worker PC")
+        
+        # Remove default window frame and set up custom title bar
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        
+        # Start maximized (not full screen)
+        self.showMaximized()
+        
+        # Window stays maximized - no dragging variables needed
 
         # Core
         self.network = WorkerNetwork()
@@ -69,14 +77,24 @@ class WorkerUI(QWidget):
     def setup_ui(self):
         self.setStyleSheet(STYLE_SHEET)
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(6)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Custom Title Bar
+        self._create_title_bar()
+
+        # Content area
+        content_widget = QWidget()
+        content_widget.setObjectName("contentArea")
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setSpacing(6)
 
         # Header
-        title = QLabel("WinLink – Worker PC (Enhanced)")
+        title = QLabel("WinLink – Worker PC")
         title.setObjectName("headerLabel")
         title.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title)
+        content_layout.addWidget(title)
 
         # Responsive splitter for panels
         splitter = QSplitter(Qt.Horizontal)
@@ -85,7 +103,95 @@ class WorkerUI(QWidget):
         splitter.addWidget(self.create_connection_panel())
         splitter.addWidget(self.create_task_panel())
         splitter.setSizes([400, 600])
-        main_layout.addWidget(splitter, 1)
+        content_layout.addWidget(splitter, 1)
+
+        main_layout.addWidget(self.title_bar)
+        main_layout.addWidget(content_widget, 1)
+
+    def _create_title_bar(self):
+        """Create modern custom title bar with controls"""
+        self.title_bar = QFrame()
+        self.title_bar.setObjectName("titleBar")
+        self.title_bar.setFixedHeight(50)
+        
+        title_layout = QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(20, 0, 10, 0)
+        title_layout.setSpacing(10)
+        
+        # App icon and title
+        app_info_layout = QHBoxLayout()
+        app_info_layout.setSpacing(12)
+        
+        # App icon
+        app_icon = QLabel("⚡")
+        app_icon.setObjectName("appIcon")
+        from PyQt5.QtGui import QFont
+        app_icon.setFont(QFont("Segoe UI Emoji", 16))
+        app_info_layout.addWidget(app_icon)
+        
+        # Title
+        title_label = QLabel("WinLink - Worker PC (Enhanced)")
+        title_label.setObjectName("titleLabel")
+        title_font = QFont("Segoe UI", 11, QFont.DemiBold)
+        title_label.setFont(title_font)
+        app_info_layout.addWidget(title_label)
+        
+        title_layout.addLayout(app_info_layout)
+        title_layout.addStretch()
+        
+        # Window controls
+        controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(0)
+        
+        # Minimize button with proper height
+        self.minimize_btn = QPushButton("-")
+        self.minimize_btn.setFixedSize(45, 35)
+        self.minimize_btn.clicked.connect(self.showMinimized)
+        self.minimize_btn.setToolTip("Minimize")
+        self.minimize_btn.setStyleSheet("""
+            QPushButton {
+                background: #555555;
+                color: white;
+                font-size: 18px;
+                font-weight: bold;
+                border: 1px solid #777777;
+                border-radius: 4px;
+                padding: 5px;
+                margin-right: 5px;
+            }
+            QPushButton:hover { 
+                background: #666666;
+                border: 1px solid #888888;
+            }
+        """)
+        controls_layout.addWidget(self.minimize_btn)
+        
+        # Close button with proper height
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setFixedSize(45, 35)
+        self.close_btn.clicked.connect(self.close)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background: #e74c3c;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border: 1px solid #c0392b;
+                border-radius: 4px;
+            }
+            QPushButton:hover { 
+                background: #c0392b;
+                border: 1px solid #a93226;
+            }
+        """)
+        controls_layout.addWidget(self.close_btn)
+        
+        title_layout.addLayout(controls_layout)
+        
+        # Title bar is not draggable - window stays maximized
+
+    # Window stays maximized - no dragging or resizing allowed
 
     def create_connection_panel(self):
         panel = QFrame()
@@ -137,71 +243,71 @@ class WorkerUI(QWidget):
             cb.setChecked(default)
             share_layout.addWidget(cb)
 
-        # # --- LIMITS SECTION (Responsive UI) ---
-        # limits = QFormLayout()
-        # limits.setContentsMargins(0, 12, 0, 0)
-        # limits.setHorizontalSpacing(18)
+        # --- LIMITS SECTION (Responsive UI) ---
+        limits = QFormLayout()
+        limits.setContentsMargins(0, 12, 0, 0)
+        limits.setHorizontalSpacing(18)
 
-        # # Make the form responsive
-        # limits.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-        # limits.setLabelAlignment(Qt.AlignLeft)
+        # Make the form responsive
+        limits.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        limits.setLabelAlignment(Qt.AlignLeft)
 
-        # spinbox_style = """
-        # QSpinBox {
-        #     color: #e6e6fa;
-        #     background: rgba(255,255,255,0.08);
-        #     border: 1px solid rgba(255,255,255,0.12);
-        #     border-radius: 6px;
-        # }
-        # """
+        spinbox_style = """
+        QSpinBox {
+            color: #e6e6fa;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 6px;
+            font-size: 10pt;
+            padding: 4px;
+        }
+        """
 
-        # # CPU SPINBOX
-        # self.cpu_limit = QSpinBox()
-        # self.cpu_limit.setRange(10, 100)
-        # self.cpu_limit.setValue(80)
-        # self.cpu_limit.setSuffix("%")
-        # self.cpu_limit.setAlignment(Qt.AlignCenter)
-        # self.cpu_limit.setStyleSheet(spinbox_style)
+        # CPU SPINBOX
+        self.cpu_limit = QSpinBox()
+        self.cpu_limit.setRange(10, 100)
+        self.cpu_limit.setValue(80)
+        self.cpu_limit.setSuffix("%")
+        self.cpu_limit.setAlignment(Qt.AlignCenter)
+        self.cpu_limit.setStyleSheet(spinbox_style)
+        self.cpu_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # self.cpu_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # MEMORY SPINBOX
+        self.mem_limit = QSpinBox()
+        self.mem_limit.setRange(256, 8192)
+        self.mem_limit.setValue(512)
+        self.mem_limit.setSuffix(" MB")
+        self.mem_limit.setAlignment(Qt.AlignCenter)
+        self.mem_limit.setStyleSheet(spinbox_style)
+        self.mem_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # # MEMORY SPINBOX
-        # self.mem_limit = QSpinBox()
-        # self.mem_limit.setRange(256, 8192)
-        # self.mem_limit.setValue(512)
-        # self.mem_limit.setSuffix(" MB")
-        # self.mem_limit.setAlignment(Qt.AlignCenter)
-        # self.mem_limit.setStyleSheet(spinbox_style)
+        # LABELS
+        lbl_cpu = QLabel("Max CPU:")
+        lbl_cpu.setObjectName("dataLabel")
+        lbl_cpu.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # self.mem_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        lbl_mem = QLabel("Max Memory:")
+        lbl_mem.setObjectName("dataLabel")
+        lbl_mem.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # # LABELS
-        # lbl_cpu = QLabel("Max CPU:")
-        # lbl_cpu.setObjectName("dataLabel")
-        # lbl_cpu.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        # ROW WRAPPERS TO FORCE PROPER RESIZING
+        cpu_row = QWidget()
+        cpu_layout = QHBoxLayout(cpu_row)
+        cpu_layout.setContentsMargins(0, 0, 0, 0)
+        cpu_layout.addWidget(self.cpu_limit)
+        cpu_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # lbl_mem = QLabel("Max Memory:")
-        # lbl_mem.setObjectName("dataLabel")
-        # lbl_mem.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        mem_row = QWidget()
+        mem_layout = QHBoxLayout(mem_row)
+        mem_layout.setContentsMargins(0, 0, 0, 0)
+        mem_layout.addWidget(self.mem_limit)
+        mem_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # # ROW WRAPPERS TO FORCE PROPER RESIZING
-        # cpu_row = QWidget()
-        # cpu_layout = QHBoxLayout(cpu_row)
-        # cpu_layout.setContentsMargins(0, 0, 0, 0)
-        # cpu_layout.addWidget(self.cpu_limit)
-        # cpu_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # Add rows
+        limits.addRow(lbl_cpu, cpu_row)
+        limits.addRow(lbl_mem, mem_row)
 
-        # mem_row = QWidget()
-        # mem_layout = QHBoxLayout(mem_row)
-        # mem_layout.setContentsMargins(0, 0, 0, 0)
-        # mem_layout.addWidget(self.mem_limit)
-        # mem_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        # # Add rows
-        # limits.addRow(lbl_cpu, cpu_row)
-        # limits.addRow(lbl_mem, mem_row)
-
-        # share_layout.addLayout(limits)
+        share_layout.addLayout(limits)
 
         share_layout.addStretch()
         layout.addWidget(share_gb)
@@ -277,6 +383,23 @@ class WorkerUI(QWidget):
         self.tasks_display.setPlainText("No active tasks.")
         self.tasks_display.setMinimumHeight(70)
         self.tasks_display.setMaximumHeight(100)
+        # Improve font for better readability - larger font for active tasks
+        tasks_font = self.tasks_display.font()
+        tasks_font.setFamily("Segoe UI")
+        tasks_font.setBold(True)  # Make it bold for better visibility
+        self.tasks_display.setFont(tasks_font)
+        # Override any CSS font settings to ensure our font size is applied
+        self.tasks_display.setStyleSheet("""
+            QTextEdit#tasksDisplay {
+                background-color: rgba(30, 30, 40, 0.8);
+                color: #f0f0f0;
+                border: 2px solid rgba(100, 255, 160, 0.4);
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 10pt;
+                line-height: 1.3;
+            }
+        """)
         v.addWidget(self.tasks_display)
         layout.addWidget(tasks_gb)
         
@@ -288,8 +411,24 @@ class WorkerUI(QWidget):
         self.task_output_display.setObjectName("tasksDisplay")
         self.task_output_display.setReadOnly(True)
         self.task_output_display.setPlainText("No task output yet.")
-        self.task_output_display.setMinimumHeight(70)
-        self.task_output_display.setMaximumHeight(100)
+        self.task_output_display.setMinimumHeight(100)  # Increased height
+        self.task_output_display.setMaximumHeight(150)  # Increased max height
+        # Enhanced font for much better readability - smaller font for placeholder text
+        output_font = self.task_output_display.font()
+        output_font.setFamily("Consolas")  # Monospace for better code/output readability
+        self.task_output_display.setFont(output_font)
+        # Better styling for output display
+        self.task_output_display.setStyleSheet("""
+            QTextEdit#tasksDisplay {
+                background-color: rgba(30, 30, 40, 0.8);
+                color: #f0f0f0;
+                border: 2px solid rgba(100, 255, 160, 0.4);
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 10pt;
+                line-height: 1.3;
+            }
+        """)
         ov.addWidget(self.task_output_display)
         layout.addWidget(output_gb)
 
@@ -317,36 +456,97 @@ class WorkerUI(QWidget):
 
         self.res_details = QTextEdit()
         self.res_details.setReadOnly(True)
-        self.res_details.setMinimumHeight(60)
-        self.res_details.setMaximumHeight(100)
+        self.res_details.setMinimumHeight(80)  # Increased height
+        self.res_details.setMaximumHeight(120)  # Increased max height
+        # Enhanced font for resource details
+        res_font = self.res_details.font()
+        res_font.setPointSize(10)
+        res_font.setFamily("Segoe UI")
+        self.res_details.setFont(res_font)
         rv.addWidget(self.res_details)
 
         layout.addWidget(res_gb)
 
-        # Task Log - Make it visible and properly sized (MUST BE VISIBLE)
-        log_gb = QGroupBox("Task Execution Log")
+        # Task Log - Enhanced styling and better visibility
+        log_gb = QGroupBox("📋 Task Execution Log")
         lv = QVBoxLayout(log_gb)
-        # Slightly smaller top margin so log fits on narrow screens
-        lv.setContentsMargins(8, 10, 8, 8)
-        lv.setSpacing(8)
+        lv.setContentsMargins(12, 15, 12, 12)  # Better margins
+        lv.setSpacing(10)  # Increased spacing
 
         self.task_log = QTextEdit()
         self.task_log.setReadOnly(True)
-        # Allow the log to expand on larger screens and shrink on small screens
-        self.task_log.setMinimumHeight(80)
-        self.task_log.setMaximumHeight(400)
+        # Better size constraints for log visibility
+        self.task_log.setMinimumHeight(120)  # Increased minimum height
+        self.task_log.setMaximumHeight(400)  # Reasonable maximum height
         self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.task_log.setPlainText("Task execution log will appear here...")
+        self.task_log.setPlainText("📝 Task execution log will appear here...")
+        # Enhanced font and styling for task log
+        log_font = self.task_log.font()
+        log_font.setPointSize(11)  # Slightly larger font
+        log_font.setFamily("Consolas")  # Monospace for log readability
+        self.task_log.setFont(log_font)
+        # Better styling for the log area
+        self.task_log.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(20, 20, 30, 0.9);
+                color: #e8e8e8;
+                border: 2px solid rgba(100, 255, 160, 0.3);
+                border-radius: 10px;
+                padding: 12px;
+                font-size: 11pt;
+                line-height: 1.4;
+            }
+            QTextEdit:focus {
+                border: 2px solid rgba(100, 255, 160, 0.6);
+            }
+        """)
 
-        # Buttons row - keep horizontal but with tighter spacing
+        # Enhanced buttons section with better styling
         btns = QHBoxLayout()
-        btns.setContentsMargins(0, 6, 0, 0)
-        btns.setSpacing(8)
-        c = QPushButton("Clear")
+        btns.setContentsMargins(0, 10, 0, 0)  # More top margin
+        btns.setSpacing(12)  # Better spacing
+        
+        # Clear button with icon
+        c = QPushButton("🗑️ Clear Log")
         c.clicked.connect(self.task_log.clear)
-        e = QPushButton("Export")
+        c.setFixedHeight(32)
+        c.setStyleSheet("""
+            QPushButton {
+                background: rgba(255, 100, 100, 0.8);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 10pt;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background: rgba(255, 120, 120, 0.9);
+            }
+        """)
+        
+        # Export button with icon
+        e = QPushButton("📤 Export Log")
         e.clicked.connect(self.export_log)
-        btns.addWidget(c); btns.addWidget(e); btns.addStretch()
+        e.setFixedHeight(32)
+        e.setStyleSheet("""
+            QPushButton {
+                background: rgba(100, 150, 255, 0.8);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 10pt;
+                padding: 6px 12px;
+            }
+            QPushButton:hover {
+                background: rgba(120, 170, 255, 0.9);
+            }
+        """)
+        
+        btns.addWidget(c)
+        btns.addWidget(e)
+        btns.addStretch()  # Push buttons to the left
 
         lv.addWidget(self.task_log)
         lv.addLayout(btns)

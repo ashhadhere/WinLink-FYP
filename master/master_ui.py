@@ -1,6 +1,7 @@
 import sys, os, json, threading, time
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import QHeaderView, QSplitter
+from PyQt5.QtWidgets import QHeaderView, QSplitter, QPushButton
+from PyQt5.QtCore import Qt
 
 # Fix module path for core & assets
 sys.path.append(os.path.abspath(os.path.join(__file__, "..", "..")))
@@ -14,10 +15,18 @@ class MasterUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("mainWindow")
-        self.setWindowTitle("WinLink – Master PC (Enhanced)")
-        self.setMinimumSize(1000, 600)
-        self.resize(1200, 800)
+        self.setWindowTitle("WinLink – Master PC")
+        
+        # Remove default window frame and set up custom title bar
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, False)
+        
+        # Start maximized (not full screen)
+        self.showMaximized()
+        
         self.setStyleSheet(STYLE_SHEET)
+        
+        # Window stays maximized - no dragging variables needed
 
         # Core
         self.task_manager = TaskManager()
@@ -39,8 +48,18 @@ class MasterUI(QtWidgets.QWidget):
 
     def setup_ui(self):
         main_layout = QtWidgets.QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Custom Title Bar
+        self._create_title_bar()
+
+        # Content area
+        content_widget = QtWidgets.QWidget()
+        content_widget.setObjectName("contentArea")
+        content_layout = QtWidgets.QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setSpacing(10)
 
         # Use splitter for responsive layout
         splitter = QSplitter(QtCore.Qt.Horizontal)
@@ -53,7 +72,96 @@ class MasterUI(QtWidgets.QWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
         splitter.setSizes([400, 800])  # Initial sizes
-        main_layout.addWidget(splitter)
+        content_layout.addWidget(splitter)
+
+        main_layout.addWidget(self.title_bar)
+        main_layout.addWidget(content_widget, 1)
+
+    def _create_title_bar(self):
+        """Create modern custom title bar with controls"""
+        self.title_bar = QtWidgets.QFrame()
+        self.title_bar.setObjectName("titleBar")
+        self.title_bar.setFixedHeight(50)
+        
+        title_layout = QtWidgets.QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(20, 0, 10, 0)
+        title_layout.setSpacing(10)
+        
+        # App icon and title
+        app_info_layout = QtWidgets.QHBoxLayout()
+        app_info_layout.setSpacing(12)
+        
+        # App icon
+        app_icon = QtWidgets.QLabel("🎯")
+        app_icon.setObjectName("appIcon")
+        app_icon.setFont(QtGui.QFont("Segoe UI Emoji", 16))
+        app_info_layout.addWidget(app_icon)
+        
+        # Title
+        title_label = QtWidgets.QLabel("WinLink - Master PC (Enhanced)")
+        title_label.setObjectName("titleLabel")
+        title_font = QtGui.QFont("Segoe UI", 11, QtGui.QFont.DemiBold)
+        title_label.setFont(title_font)
+        app_info_layout.addWidget(title_label)
+        
+        title_layout.addLayout(app_info_layout)
+        title_layout.addStretch()
+        
+        # Window controls
+        controls_layout = QtWidgets.QHBoxLayout()
+        controls_layout.setSpacing(0)
+        
+        # Minimize button with proper height
+        self.minimize_btn = QPushButton("-")
+        self.minimize_btn.setFixedSize(45, 35)
+        self.minimize_btn.clicked.connect(self.showMinimized)
+        self.minimize_btn.setToolTip("Minimize")
+        self.minimize_btn.setStyleSheet("""
+            QPushButton {
+                background: #555555;
+                color: white;
+                font-size: 18px;
+                font-weight: bold;
+                border: 1px solid #777777;
+                border-radius: 4px;
+                padding: 5px;
+                margin-right: 5px;
+            }
+            QPushButton:hover { 
+                background: #666666;
+                border: 1px solid #888888;
+            }
+        """)
+        controls_layout.addWidget(self.minimize_btn)
+        
+        # Close button with proper height
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setFixedSize(45, 35)
+        self.close_btn.clicked.connect(self.close)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background: #e74c3c;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                border: 1px solid #c0392b;
+                border-radius: 4px;
+            }
+            QPushButton:hover { 
+                background: #c0392b;
+                border: 1px solid #a93226;
+            }
+        """)
+        controls_layout.addWidget(self.close_btn)
+        
+        title_layout.addLayout(controls_layout)
+        
+        # Title bar is not draggable - window stays maximized
+
+    # Window stays maximized - no fullscreen toggle needed
+
+    # No dragging methods - window stays maximized
 
     def create_worker_panel(self):
         panel = QtWidgets.QFrame()
@@ -119,9 +227,9 @@ class MasterUI(QtWidgets.QWidget):
         # Simple styling
         self.resource_display.setStyleSheet("""
             QTextEdit {
-                background-color: rgba(30, 30, 40, 0.6);
-                color: #e0e0e0;
-                border: 1px solid rgba(100, 255, 160, 0.3);
+                background-color: rgba(30, 30, 40, 0.8);
+                color: #f0f0f0;
+                border: 1px solid rgba(100, 255, 160, 0.5);
                 border-radius: 8px;
                 padding: 10px;
                 font-size: 9pt;
@@ -172,11 +280,54 @@ class MasterUI(QtWidgets.QWidget):
         self.template_combo.currentTextChanged.connect(self.on_template_changed)
         g_l.addWidget(self.template_combo)
         self.task_description = QtWidgets.QLabel(); self.task_description.setWordWrap(True)
+        # Enhance font for task description
+        desc_font = self.task_description.font()
+        desc_font.setPointSize(9)
+        desc_font.setBold(True)
+        self.task_description.setFont(desc_font)
+        self.task_description.setStyleSheet("""
+            QLabel {
+                color: #c1d5e0;
+                background-color: rgba(50, 50, 70, 0.5);
+                border-radius: 4px;
+                padding: 6px;
+                margin: 4px 0;
+            }
+        """)
         g_l.addWidget(self.task_description)
         self.task_code_edit = QtWidgets.QTextEdit(); self.task_code_edit.setMaximumHeight(120)
+        # Enhance font for task code editing
+        code_font = self.task_code_edit.font()
+        code_font.setPointSize(9)
+        code_font.setFamily("Consolas")
+        self.task_code_edit.setFont(code_font)
         g_l.addWidget(self.task_code_edit)
         self.task_data_edit = QtWidgets.QTextEdit(); self.task_data_edit.setMaximumHeight(80)
+        # Enhance font for task data editing
+        data_font = self.task_data_edit.font()
+        data_font.setPointSize(9)
+        data_font.setFamily("Consolas")
+        self.task_data_edit.setFont(data_font)
         g_l.addWidget(self.task_data_edit)
+        # Apply custom styling to code and data editors for better visibility
+        editor_style = """
+            QTextEdit {
+                background-color: rgba(30, 30, 40, 0.9);
+                color: #f0f0f0;
+                border: 2px solid rgba(100, 255, 160, 0.3);
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 9pt;
+                font-family: 'Consolas';
+                line-height: 1.3;
+            }
+            QTextEdit:focus {
+                border: 2px solid rgba(100, 255, 160, 0.6);
+            }
+        """
+        self.task_code_edit.setStyleSheet(editor_style)
+        self.task_data_edit.setStyleSheet(editor_style)
+        
         self.submit_task_btn = QtWidgets.QPushButton("Submit Task"); self.submit_task_btn.setObjectName("startBtn")
         self.submit_task_btn.clicked.connect(self.submit_task)
         g_l.addWidget(self.submit_task_btn)

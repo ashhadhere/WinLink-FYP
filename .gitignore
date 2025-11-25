@@ -1,16 +1,163 @@
-# Ignore PyInstaller build folders
-dist/
-build/
+# Python
 __pycache__/
-*.spec
-
-# Ignore Python environment (if any)
-venv/
-.env/
-
-# Ignore compiled files
+*.py[cod]
 *.pyc
 *.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+.installed.cfg
 
-# Optional: Windows Thumbs
+# Virtual environments
+venv/
+.env/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.development
+.env.production
+*.env
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
+.rope_project_folder/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build and distribution
+dist/
+build/
+*.spec
+*.egg-info/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+
+# PyInstaller
+*.manifest
+
+# Runtime generated files
+logs/
+*.log
+*.log.*
+log/
+temp/
+tmp/
+cache/
+
+# Database files
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+database.db
+winlink.db
+
+# Configuration files with sensitive data
+config_override.py
+config/secrets.py
+config/production.py
+local_settings.py
+settings_local.py
+private_settings.py
+
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# SSL certificates and keys
+ssl/
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+certificates/
+
+# Authentication and security
+auth/
+secrets/
+keys/
+*.token
+*.secret
+api_keys.txt
+passwords.txt
+auth_token.txt
+private_key.txt
+access_token.txt
+
+# Docker secrets
+docker-compose.override.yml
+.dockerignore
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Test files and coverage
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Network and server files
+*.sock
+*.pid
+server.log
+network.log
+
+# Application specific
+winlink_data/
+worker_cache/
+master_cache/
+task_cache/
+distributed_cache/
+
+# Performance and profiling
+*.prof
+*.cprof
+profile_results/
+
+# User specific files (if any)
+user_config.json
+personal_settings.json
