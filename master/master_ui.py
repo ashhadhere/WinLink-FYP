@@ -479,12 +479,14 @@ class MasterUI(QtWidgets.QWidget):
         print(f"[DEBUG]    Battery: {data.get('battery_percent')}% (Plugged: {data.get('battery_plugged')})")
         
         with self.worker_resources_lock:
-            self.worker_resources[worker_id] = data
-            print(f"[DEBUG] 💾 Worker resources stored. Total workers in dict: {len(self.worker_resources)}")
+            self.worker_resources[worker_id] = data.copy()  # Make a copy to avoid reference issues
+            print(f"[DEBUG] 💾 Worker resources stored for {worker_id}")
+            print(f"[DEBUG] 💾 Total workers in dict: {len(self.worker_resources)}")
+            print(f"[DEBUG] 💾 Worker IDs in dict: {list(self.worker_resources.keys())}")
         
-        # Immediately update the display
-        print(f"[DEBUG] 🔄 Calling update_resource_display()")
-        self.update_resource_display()
+        # Schedule UI update on Qt main thread
+        print(f"[DEBUG] 🔄 Scheduling update_resource_display() on main thread")
+        QtCore.QTimer.singleShot(0, self.update_resource_display)
     
     def update_resource_display(self):
         """Update the resource display with current worker data"""
@@ -499,14 +501,14 @@ class MasterUI(QtWidgets.QWidget):
             connected_workers = self.network.get_connected_workers()
             if not connected_workers:
                 print(f"[DEBUG] ⏳ No workers connected")
-                QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
+                self.resource_display.setPlainText(
                     "⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here."
-                ))
+                )
             else:
                 print(f"[DEBUG] ⏳ {len(connected_workers)} workers connected but no data yet")
-                QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
+                self.resource_display.setPlainText(
                     f"✅ Connected to {len(connected_workers)} worker(s)\n\n⏳ Loading resource data..."
-                ))
+                )
             return
         
         # Build display text
@@ -571,13 +573,10 @@ class MasterUI(QtWidgets.QWidget):
         print(f"[DEBUG] 📝 Generated text: {len(final_text)} chars")
         print(f"[DEBUG] 📝 First 150 chars: {final_text[:150]}")
         
-        # Update display on Qt main thread
-        def do_update():
-            print(f"[DEBUG] 🎨 Updating display widget NOW")
-            self.resource_display.setPlainText(final_text)
-            print(f"[DEBUG] ✅ Display updated successfully!")
-        
-        QtCore.QTimer.singleShot(0, do_update)
+        # Update display (we're already on Qt main thread)
+        print(f"[DEBUG] 🎨 Updating display widget NOW")
+        self.resource_display.setPlainText(final_text)
+        print(f"[DEBUG] ✅ Display updated successfully!")
 
     def handle_worker_ready(self, worker_id, data):
         self.network.request_resources_from_worker(worker_id)
@@ -623,9 +622,10 @@ class MasterUI(QtWidgets.QWidget):
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:
             print(f"[DEBUG] 📸 Creating snapshot from {len(self.worker_resources)} stored workers")
+            print(f"[DEBUG] 📸 Worker IDs in resources: {list(self.worker_resources.keys())}")
             snapshot = {wid: data.copy() for wid, data in self.worker_resources.items()}
             for wid, data in snapshot.items():
-                print(f"[DEBUG]    ✓ Worker {wid}: {len(data)} data fields")
+                print(f"[DEBUG]    ✓ Worker {wid}: {len(data)} data fields - CPU: {data.get('cpu_percent', 'N/A')}")
             return snapshot
 
     def closeEvent(self, event: QtGui.QCloseEvent):
