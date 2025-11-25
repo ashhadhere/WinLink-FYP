@@ -469,105 +469,115 @@ class MasterUI(QtWidgets.QWidget):
 
     def handle_resource_data(self, worker_id, data):
         """Handle incoming resource data from workers"""
-        print(f"[DEBUG] Received resource data from {worker_id}: {list(data.keys())}")
-        print(f"[DEBUG] CPU: {data.get('cpu_percent')}%, RAM Available: {data.get('memory_available_mb')}MB")
+        print(f"[DEBUG] ✅ Received resource data from {worker_id}:")
+        print(f"[DEBUG]    CPU: {data.get('cpu_percent', 0):.1f}%")
+        print(f"[DEBUG]    Memory: {data.get('memory_percent', 0):.1f}%")
+        print(f"[DEBUG]    RAM Total: {data.get('memory_total_mb', 0):.0f} MB")
+        print(f"[DEBUG]    RAM Available: {data.get('memory_available_mb', 0):.0f} MB")
+        print(f"[DEBUG]    Disk: {data.get('disk_percent', 0):.1f}%")
+        print(f"[DEBUG]    Disk Free: {data.get('disk_free_gb', 0):.1f} GB")
+        print(f"[DEBUG]    Battery: {data.get('battery_percent')}% (Plugged: {data.get('battery_plugged')})")
         
         with self.worker_resources_lock:
             self.worker_resources[worker_id] = data
-            print(f"[DEBUG] Worker resources stored. Total workers: {len(self.worker_resources)}")
+            print(f"[DEBUG] 💾 Worker resources stored. Total workers in dict: {len(self.worker_resources)}")
         
         # Immediately update the display
-        print(f"[DEBUG] Calling update_resource_display()")
+        print(f"[DEBUG] 🔄 Calling update_resource_display()")
         self.update_resource_display()
     
     def update_resource_display(self):
         """Update the resource display with current worker data"""
-        print(f"[DEBUG] update_resource_display() called")
+        print(f"[DEBUG] 📺 update_resource_display() called")
         
-        def format_and_update():
-            print(f"[DEBUG] format_and_update() executing")
-            snapshot = self._get_worker_resources_snapshot()
-            print(f"[DEBUG] Snapshot has {len(snapshot)} workers")
-            
-            # Check if we have connected workers but no resources yet
+        # Get snapshot immediately
+        snapshot = self._get_worker_resources_snapshot()
+        print(f"[DEBUG] 📸 Got snapshot with {len(snapshot)} workers")
+        
+        # Check if we have data
+        if not snapshot:
             connected_workers = self.network.get_connected_workers()
-            if not snapshot and not connected_workers:
-                print(f"[DEBUG] No snapshot, no workers - showing waiting message")
-                self.resource_display.setPlainText("⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here.")
-                return
-            elif not snapshot and connected_workers:
-                print(f"[DEBUG] No snapshot but {len(connected_workers)} connected - showing connecting message")
-                self.resource_display.setPlainText(f"🔄 Connected to {len(connected_workers)} worker(s)\n\nWaiting for resource data...")
-                return
-            
-            output = []
-            output.append(f"📊 LIVE WORKER RESOURCES - {len(snapshot)} Connected")
-            output.append(f"🕐 Updated: {time.strftime('%H:%M:%S')}")
-            output.append("=" * 50)
-            output.append("")
-            
-            for wid, stats in snapshot.items():
-                print(f"[DEBUG] Processing worker {wid}")
-                # Extract worker IP
-                worker_ip = wid.split(":")[0] if ":" in wid else wid
-                
-                # Get stats
-                cpu = stats.get("cpu_percent", 0.0)
-                mem_percent = stats.get("memory_percent", 0.0)
-                mem_total_mb = stats.get("memory_total_mb", 0.0)
-                mem_avail_mb = stats.get("memory_available_mb", 0.0)
-                mem_used_mb = mem_total_mb - mem_avail_mb if mem_total_mb > 0 else 0
-                disk_percent = stats.get("disk_percent", 0.0)
-                disk_free_gb = stats.get("disk_free_gb", 0.0)
-                battery = stats.get("battery_percent")
-                plugged = stats.get("battery_plugged")
-                
-                print(f"[DEBUG] Worker stats - CPU: {cpu}%, MEM: {mem_percent}%, Available: {mem_avail_mb}MB")
-                
-                # Status indicator
-                def status(val):
-                    return "🟢" if val < 50 else "🟡" if val < 75 else "🔴"
-                
-                output.append(f"🖥️  WORKER: {worker_ip}")
-                output.append("-" * 50)
-                
-                # CPU
-                output.append(f"{status(cpu)} CPU Usage:          {cpu:5.1f}%")
-                
-                # Memory - HIGHLIGHT UNUTILIZED RAM
-                mem_total_gb = mem_total_mb / 1024
-                mem_used_gb = mem_used_mb / 1024
-                mem_avail_gb = mem_avail_mb / 1024
-                output.append(f"{status(mem_percent)} Memory Usage:       {mem_percent:5.1f}%")
-                output.append(f"   • Total RAM:        {mem_total_gb:6.2f} GB")
-                output.append(f"   • Used RAM:         {mem_used_gb:6.2f} GB")
-                output.append(f"   💚 UNUTILIZED RAM:  {mem_avail_gb:6.2f} GB ⭐")
-                
-                # Disk
-                output.append(f"{status(disk_percent)} Disk Usage:         {disk_percent:5.1f}%")
-                output.append(f"   • Free Space:       {disk_free_gb:6.1f} GB")
-                
-                # Battery
-                if battery is not None:
-                    icon = "🔌" if plugged else "🔋"
-                    status_text = "Charging" if plugged else "On Battery"
-                    output.append(f"{icon} Battery:            {battery:5.0f}% ({status_text})")
-                else:
-                    output.append("⚡ Power:              AC (No Battery)")
-                
-                output.append("")
-            
-            final_text = "\n".join(output)
-            print(f"[DEBUG] Generated output text ({len(final_text)} chars), first 200 chars:")
-            print(f"[DEBUG] {final_text[:200]}")
-            print(f"[DEBUG] Calling setPlainText on resource_display")
-            self.resource_display.setPlainText(final_text)
-            print(f"[DEBUG] setPlainText completed")
+            if not connected_workers:
+                print(f"[DEBUG] ⏳ No workers connected")
+                QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
+                    "⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here."
+                ))
+            else:
+                print(f"[DEBUG] ⏳ {len(connected_workers)} workers connected but no data yet")
+                QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
+                    f"🔄 Connected to {len(connected_workers)} worker(s)\n\nWaiting for resource data..."
+                ))
+            return
         
-        # Run on Qt main thread
-        print(f"[DEBUG] Scheduling format_and_update on Qt thread")
-        QtCore.QTimer.singleShot(0, format_and_update)
-        self.refresh_workers_async()
+        # Build display text
+        output = []
+        output.append(f"📊 LIVE WORKER RESOURCES - {len(snapshot)} Connected")
+        output.append(f"🕐 Updated: {time.strftime('%H:%M:%S')}")
+        output.append("=" * 50)
+        output.append("")
+        
+        for wid, stats in snapshot.items():
+            print(f"[DEBUG] 🔄 Processing worker {wid}")
+            # Extract worker IP
+            worker_ip = wid.split(":")[0] if ":" in wid else wid
+            
+            # Get stats
+            cpu = stats.get("cpu_percent", 0.0)
+            mem_percent = stats.get("memory_percent", 0.0)
+            mem_total_mb = stats.get("memory_total_mb", 0.0)
+            mem_avail_mb = stats.get("memory_available_mb", 0.0)
+            mem_used_mb = mem_total_mb - mem_avail_mb if mem_total_mb > 0 else 0
+            disk_percent = stats.get("disk_percent", 0.0)
+            disk_free_gb = stats.get("disk_free_gb", 0.0)
+            battery = stats.get("battery_percent")
+            plugged = stats.get("battery_plugged")
+            
+            print(f"[DEBUG] 📊 Stats - CPU: {cpu:.1f}%, MEM: {mem_percent:.1f}%, AVAIL: {mem_avail_mb:.0f}MB")
+            
+            # Status indicator
+            def status(val):
+                return "🟢" if val < 50 else "🟡" if val < 75 else "🔴"
+            
+            output.append(f"🖥️  WORKER: {worker_ip}")
+            output.append("-" * 50)
+            
+            # CPU
+            output.append(f"{status(cpu)} CPU Usage:          {cpu:5.1f}%")
+            
+            # Memory - HIGHLIGHT UNUTILIZED RAM
+            mem_total_gb = mem_total_mb / 1024
+            mem_used_gb = mem_used_mb / 1024
+            mem_avail_gb = mem_avail_mb / 1024
+            output.append(f"{status(mem_percent)} Memory Usage:       {mem_percent:5.1f}%")
+            output.append(f"   • Total RAM:        {mem_total_gb:6.2f} GB")
+            output.append(f"   • Used RAM:         {mem_used_gb:6.2f} GB")
+            output.append(f"   💚 UNUTILIZED RAM:  {mem_avail_gb:6.2f} GB ⭐")
+            
+            # Disk
+            output.append(f"{status(disk_percent)} Disk Usage:         {disk_percent:5.1f}%")
+            output.append(f"   • Free Space:       {disk_free_gb:6.1f} GB")
+            
+            # Battery
+            if battery is not None:
+                icon = "🔌" if plugged else "🔋"
+                status_text = "Charging" if plugged else "On Battery"
+                output.append(f"{icon} Battery:            {battery:5.0f}% ({status_text})")
+            else:
+                output.append("⚡ Power:              AC (No Battery)")
+            
+            output.append("")
+        
+        final_text = "\n".join(output)
+        print(f"[DEBUG] 📝 Generated text: {len(final_text)} chars")
+        print(f"[DEBUG] 📝 First 150 chars: {final_text[:150]}")
+        
+        # Update display on Qt main thread
+        def do_update():
+            print(f"[DEBUG] 🎨 Updating display widget NOW")
+            self.resource_display.setPlainText(final_text)
+            print(f"[DEBUG] ✅ Display updated successfully!")
+        
+        QtCore.QTimer.singleShot(0, do_update)
 
     def handle_worker_ready(self, worker_id, data):
         self.network.request_resources_from_worker(worker_id)
@@ -615,10 +625,10 @@ class MasterUI(QtWidgets.QWidget):
 
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:
+            print(f"[DEBUG] 📸 Creating snapshot from {len(self.worker_resources)} stored workers")
             snapshot = {wid: data.copy() for wid, data in self.worker_resources.items()}
-            print(f"[DEBUG] _get_worker_resources_snapshot returning {len(snapshot)} workers")
-            for wid in snapshot.keys():
-                print(f"[DEBUG]   - {wid}")
+            for wid, data in snapshot.items():
+                print(f"[DEBUG]    ✓ Worker {wid}: {len(data)} data fields")
             return snapshot
 
     def closeEvent(self, event: QtGui.QCloseEvent):
