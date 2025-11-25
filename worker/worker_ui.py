@@ -378,6 +378,14 @@ class WorkerUI(QWidget):
                 progress_callback=lambda pct: self.send_progress_update(task_id, pct)
             )
 
+            # Log execution result details
+            self.log(f"🔍 Task {task_id} execution completed:")
+            self.log(f"   Success: {result.get('success')}")
+            self.log(f"   Result type: {type(result.get('result')).__name__}")
+            self.log(f"   Has stdout: {bool(result.get('stdout'))}")
+            self.log(f"   Has stderr: {bool(result.get('stderr'))}")
+            self.log(f"   Has error: {bool(result.get('error'))}")
+
             status = "done" if result.get("success") else "failed"
             progress_final = 100 if result.get("success") else max(0, min(99, self._get_task_progress(task_id)))
             self.send_progress_update(task_id, progress_final)
@@ -388,12 +396,36 @@ class WorkerUI(QWidget):
                 output_parts.append(f"STDOUT:\n{result['stdout']}")
             if result.get("stderr"):
                 output_parts.append(f"STDERR:\n{result['stderr']}")
-            if result.get("result") is not None:
-                result_val = result.get("result")
+            
+            # Handle result display with better formatting
+            result_val = result.get("result")
+            if result_val is not None:
                 if isinstance(result_val, dict):
-                    output_parts.append(f"RESULT:\n{json.dumps(result_val, indent=2)}")
-                else:
+                    if result_val:  # Non-empty dict
+                        output_parts.append(f"RESULT:\n{json.dumps(result_val, indent=2)}")
+                    else:
+                        output_parts.append(f"RESULT:\n{{}}")
+                elif isinstance(result_val, (list, tuple)):
+                    if result_val:
+                        output_parts.append(f"RESULT:\n{json.dumps(result_val, indent=2)}")
+                    else:
+                        output_parts.append(f"RESULT:\n[]")
+                elif isinstance(result_val, str):
+                    if result_val:
+                        output_parts.append(f"RESULT:\n{result_val}")
+                    else:
+                        output_parts.append(f"RESULT:\n(empty string)")
+                elif isinstance(result_val, bool):
                     output_parts.append(f"RESULT:\n{result_val}")
+                elif isinstance(result_val, (int, float)):
+                    output_parts.append(f"RESULT:\n{result_val}")
+                else:
+                    output_parts.append(f"RESULT:\n{str(result_val)}")
+            else:
+                # result is None - check if task succeeded
+                if result.get("success") and not result.get("error"):
+                    output_parts.append("RESULT:\n(Task completed but returned None)")
+            
             if result.get("error"):
                 output_parts.append(f"ERROR:\n{result['error']}")
             

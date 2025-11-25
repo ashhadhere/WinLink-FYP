@@ -44,6 +44,17 @@ class TaskExecutor:
             except Exception:
                 pass
         
+        # Capture stdout and stderr
+        stdout_capture = io.StringIO()
+        stderr_capture = io.StringIO()
+        
+        # Create custom print function that writes to stdout_capture
+        def custom_print(*args, **kwargs):
+            """Custom print function that writes to captured stdout"""
+            import builtins
+            kwargs['file'] = stdout_capture
+            builtins.print(*args, **kwargs)
+        
         # Create isolated namespace for task execution
         task_namespace = {
             'data': task_data,
@@ -57,7 +68,7 @@ class TaskExecutor:
                 'round': round, 'sorted': sorted, 'reversed': reversed,
                 'int': int, 'float': float, 'str': str, 'bool': bool,
                 'list': list, 'dict': dict, 'set': set, 'tuple': tuple,
-                'print': print, 'type': type, 'isinstance': isinstance,
+                'print': custom_print, 'type': type, 'isinstance': isinstance,
                 'ValueError': ValueError, 'TypeError': TypeError,
                 'IndexError': IndexError, 'KeyError': KeyError
             }
@@ -70,10 +81,6 @@ class TaskExecutor:
                 task_namespace[module] = __import__(module)
             except ImportError:
                 pass
-        
-        # Capture stdout and stderr
-        stdout_capture = io.StringIO()
-        stderr_capture = io.StringIO()
         
         try:
             # Execute with timeout and memory monitoring

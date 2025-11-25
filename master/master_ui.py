@@ -61,7 +61,7 @@ class MasterUI(QtWidgets.QWidget):
         lay = QtWidgets.QVBoxLayout(panel)
         lay.setSpacing(12)
 
-        hdr = QtWidgets.QLabel("Worker Management", panel)
+        hdr = QtWidgets.QLabel("🖥️ Worker Management", panel)
         hdr.setObjectName("headerLabel")
         hdr.setAlignment(QtCore.Qt.AlignCenter)
         lay.addWidget(hdr)
@@ -93,16 +93,37 @@ class MasterUI(QtWidgets.QWidget):
         w_l.addLayout(btn_h)
         lay.addWidget(wgrp)
 
-        # Worker Resources Display
-        rgrp = QtWidgets.QGroupBox("Worker Resources", panel)
+        # Worker Resources Display - Enhanced with better styling
+        rgrp = QtWidgets.QGroupBox("Live Worker Resources", panel)
         r_l = QtWidgets.QVBoxLayout(rgrp)
         self.resource_display = QtWidgets.QTextEdit()
         self.resource_display.setReadOnly(True)
-        self.resource_display.setMinimumHeight(100)
-        self.resource_display.setMaximumHeight(200)
-        self.resource_display.setPlainText("No worker resources available yet.\nConnect workers and wait for resource updates.")
+        self.resource_display.setMinimumHeight(150)
+        # Make font larger and more readable
+        font = self.resource_display.font()
+        font.setPointSize(10)  # Increase font size
+        font.setFamily("Consolas")  # Use monospace font for better alignment
+        self.resource_display.setFont(font)
+        # Add styling for better readability
+        self.resource_display.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(30, 30, 40, 0.6);
+                color: #ffffff;
+                border: 1px solid rgba(100, 255, 160, 0.3);
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 10pt;
+                line-height: 1.4;
+            }
+        """)
+        self.resource_display.setPlainText("🔄 Waiting for worker resources...\n\nConnect workers and data will appear here automatically.")
         r_l.addWidget(self.resource_display)
         lay.addWidget(rgrp)
+        
+        # Add refresh button for manual resource update
+        refresh_res_btn = QtWidgets.QPushButton("🔄 Refresh Resources")
+        refresh_res_btn.clicked.connect(self.refresh_all_worker_resources)
+        r_l.addWidget(refresh_res_btn)
 
         self.workers_list.itemSelectionChanged.connect(self.on_worker_selection_changed)
         return panel
@@ -113,7 +134,7 @@ class MasterUI(QtWidgets.QWidget):
         lay = QtWidgets.QVBoxLayout(panel)
         lay.setSpacing(12)
 
-        hdr = QtWidgets.QLabel("Task Management", panel)
+        hdr = QtWidgets.QLabel("📋 Task Management", panel)
         hdr.setObjectName("headerLabel"); hdr.setAlignment(QtCore.Qt.AlignCenter)
         lay.addWidget(hdr)
 
@@ -173,9 +194,11 @@ class MasterUI(QtWidgets.QWidget):
     def start_monitoring_thread(self):
         def monitor():
             while self.monitoring_active:
-                for worker_id in self.network.get_connected_workers():
-                    self.network.request_resources_from_worker(worker_id)
-                time.sleep(3)
+                workers = self.network.get_connected_workers()
+                if workers:
+                    for worker_id in workers.keys():
+                        self.network.request_resources_from_worker(worker_id)
+                time.sleep(2)  # Update every 2 seconds for more real-time feel
         threading.Thread(target=monitor, daemon=True).start()
 
     # ─── Event Handlers ───
@@ -449,7 +472,8 @@ class MasterUI(QtWidgets.QWidget):
         def format_resources():
             snapshot = self._get_worker_resources_snapshot()
             if not snapshot:
-                return "No worker resources available yet.\nConnect workers and wait for resource updates."
+                return "🔄 Waiting for worker resources...\n\nConnect workers and data will appear here automatically."
+            
             lines = []
             for wid, stats in snapshot.items():
                 cpu = stats.get("cpu_percent", 0.0)
@@ -465,24 +489,65 @@ class MasterUI(QtWidgets.QWidget):
                 # Extract IP from worker_id (format: "ip:port")
                 worker_ip = wid.split(":")[0] if ":" in wid else wid
                 
-                line = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                line += f"Worker: {worker_ip}\n"
-                line += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                line += f"CPU Usage: {cpu:.1f}%\n"
-                line += f"Memory Usage: {mem_percent:.1f}%\n"
-                line += f"  • Total Memory: {mem_total:.0f} MB\n"
-                line += f"  • Used Memory: {mem_used:.0f} MB\n"
-                line += f"  • Available (Unutilized) RAM: {mem_avail:.0f} MB\n"
-                line += f"Disk Usage: {disk:.1f}%\n"
-                line += f"  • Free Disk Space: {disk_free:.1f} GB\n"
+                # Create visual indicators for resource usage
+                def get_indicator(percent):
+                    if percent < 50:
+                        return "🟢"  # Green - Good
+                    elif percent < 75:
+                        return "🟡"  # Yellow - Moderate
+                    else:
+                        return "🔴"  # Red - High
+                
+                def get_bar(percent, width=20):
+                    """Create a visual bar for percentage"""
+                    filled = int((percent / 100) * width)
+                    bar = "█" * filled + "░" * (width - filled)
+                    return bar
+                
+                line = "╔══════════════════════════════════════════════╗\n"
+                line += f"║  🖥️  WORKER: {worker_ip:<30} ║\n"
+                line += "╚══════════════════════════════════════════════╝\n\n"
+                
+                # CPU with visual bar
+                cpu_indicator = get_indicator(cpu)
+                line += f"{cpu_indicator} CPU USAGE: {cpu:>5.1f}%\n"
+                line += f"   {get_bar(cpu)} \n\n"
+                
+                # Memory with visual bar
+                mem_indicator = get_indicator(mem_percent)
+                mem_total_gb = mem_total / 1024
+                mem_used_gb = mem_used / 1024
+                mem_avail_gb = mem_avail / 1024
+                line += f"{mem_indicator} MEMORY USAGE: {mem_percent:>5.1f}%\n"
+                line += f"   {get_bar(mem_percent)} \n"
+                line += f"   📊 Total:     {mem_total_gb:>6.2f} GB\n"
+                line += f"   📈 Used:      {mem_used_gb:>6.2f} GB\n"
+                line += f"   📉 Available: {mem_avail_gb:>6.2f} GB\n\n"
+                
+                # Disk with visual bar
+                disk_indicator = get_indicator(disk)
+                line += f"{disk_indicator} DISK USAGE: {disk:>5.1f}%\n"
+                line += f"   {get_bar(disk)} \n"
+                line += f"   💾 Free Space: {disk_free:>6.1f} GB\n\n"
+                
+                # Battery status
                 if battery is not None:
                     icon = "🔌" if plugged else "🔋"
                     status = "Charging" if plugged else "Discharging"
-                    line += f"Battery: {icon} {battery:.0f}% ({status})\n"
+                    bat_indicator = get_indicator(100 - battery if not plugged else 0)
+                    line += f"{icon} BATTERY: {battery:>5.0f}% ({status})\n"
+                    if not plugged:
+                        line += f"   {get_bar(battery)} \n"
                 else:
-                    line += f"Battery: Not Available\n"
+                    line += "⚡ POWER: AC (No Battery)\n"
+                
                 lines.append(line)
-            return "\n\n".join(lines) if lines else "No worker resources available."
+            
+            header = f"🔄 LIVE RESOURCES ({len(snapshot)} Worker{'s' if len(snapshot) > 1 else ''})\n"
+            header += f"Last Updated: {time.strftime('%H:%M:%S')}\n"
+            header += "═" * 48 + "\n\n"
+            
+            return header + "\n".join(lines) if lines else "No worker resources available."
         
         QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(format_resources()))
         self.refresh_workers_async()
@@ -516,6 +581,21 @@ class MasterUI(QtWidgets.QWidget):
 
     def refresh_workers_async(self):
         QtCore.QTimer.singleShot(0, self.refresh_workers)
+
+    def refresh_all_worker_resources(self):
+        """Manually request resources from all connected workers"""
+        workers = self.network.get_connected_workers()
+        if not workers:
+            QtWidgets.QMessageBox.information(self, "No Workers", "No workers are currently connected.")
+            return
+        
+        for worker_id in workers.keys():
+            self.network.request_resources_from_worker(worker_id)
+        
+        # Show confirmation
+        QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
+            f"🔄 Refreshing resources from {len(workers)} worker(s)...\n\nPlease wait..."
+        ))
 
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:

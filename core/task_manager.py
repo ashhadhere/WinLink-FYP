@@ -201,6 +201,34 @@ class TaskManager:
 
 # Predefined task templates
 TASK_TEMPLATES = {
+    "hello_world": {
+        "type": TaskType.COMPUTATION,
+        "name": "Hello World Test",
+        "description": "Simple test task to verify output display",
+        "code": """
+# This is a simple test task
+print("Hello from Worker!")
+print("Task is executing...")
+
+# Get the name from data
+name = data.get('name', 'World')
+message = f"Hello, {name}!"
+
+print(f"Generated message: {message}")
+
+# Set the result
+result = {
+    'message': message,
+    'length': len(message),
+    'uppercase': message.upper(),
+    'status': 'success'
+}
+
+print("Task completed successfully!")
+""",
+        "sample_data": {"name": "WinLink User"}
+    },
+    
     "fibonacci": {
         "type": TaskType.COMPUTATION,
         "name": "Fibonacci Series",

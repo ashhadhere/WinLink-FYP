@@ -6,6 +6,7 @@ STYLE_SHEET = """
    ====================== */
 QWidget {
     font-family: 'Segoe UI', sans-serif;
+    font-size: 11pt;  /* Increased base font size */
     color: #e6e6fa;
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                                 stop:0 #141e30, stop:1 #243b55);
@@ -39,6 +40,7 @@ QGroupBox {
     padding: 16px;
     color: #c1d5e0;
     font-weight: 600;
+    font-size: 13pt;  /* Increased font size for group box titles */
 }
 
 /* ======================
@@ -333,6 +335,7 @@ QGroupBox {
     padding: 16px;
     color: #c1d5e0;
     font-weight: 600;
+    font-size: 13pt;  /* Increased font size for group box titles */
 }
 
 /* ======================
@@ -644,6 +647,11 @@ QListWidget {
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px;
     color: white;
+    font-size: 11pt;  /* Increased font size */
+    padding: 4px;
+}
+QListWidget::item {
+    padding: 6px;
 }
 QListWidget::item:selected {
     background: rgba(88,166,255,0.3);
@@ -664,12 +672,41 @@ QTableWidget {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
     color: white;
+    font-size: 11pt;  /* Increased font size */
+}
+QTableWidget::item {
+    padding: 6px;
 }
 QHeaderView::section {
     background: rgba(255,255,255,0.1);
     color: white;
-    padding: 4px;
+    padding: 8px;
     border: none;
+    font-size: 11pt;  /* Increased font size */
+    font-weight: 600;
+}
+
+/* ── ComboBox ── */
+QComboBox {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 11pt;  /* Increased font size */
+}
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox::down-arrow {
+    image: none;
+    border: none;
+}
+QComboBox QAbstractItemView {
+    background: rgba(20,20,32,0.95);
+    color: white;
+    selection-background-color: rgba(0,245,160,0.3);
+    font-size: 11pt;
 }
 
 /* Scrollbar for task table */
