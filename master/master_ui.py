@@ -60,15 +60,23 @@ class MasterUI(QtWidgets.QWidget):
         panel.setProperty("glass", True)
         lay = QtWidgets.QVBoxLayout(panel)
         lay.setSpacing(12)
+        lay.setContentsMargins(10, 15, 10, 10)
 
         hdr = QtWidgets.QLabel("🖥️ Worker Management", panel)
         hdr.setObjectName("headerLabel")
         hdr.setAlignment(QtCore.Qt.AlignCenter)
+        hf = hdr.font()
+        hf.setPointSize(13)
+        hf.setBold(True)
+        hdr.setFont(hf)
+        hdr.setMargin(6)
         lay.addWidget(hdr)
 
         # Add Worker
         grp = QtWidgets.QGroupBox("Add Worker", panel)
         g_l = QtWidgets.QVBoxLayout(grp)
+        g_l.setSpacing(6)
+        g_l.setContentsMargins(8, 15, 8, 8)
         self.ip_input = QtWidgets.QLineEdit(); self.ip_input.setPlaceholderText("IP")
         self.port_input = QtWidgets.QLineEdit(); self.port_input.setPlaceholderText("Port")
         self.port_input.setValidator(QtGui.QIntValidator(1,65535))
@@ -81,6 +89,8 @@ class MasterUI(QtWidgets.QWidget):
         # Connected Workers
         wgrp = QtWidgets.QGroupBox("Connected Workers", panel)
         w_l = QtWidgets.QVBoxLayout(wgrp)
+        w_l.setSpacing(6)
+        w_l.setContentsMargins(8, 20, 8, 8)
         self.workers_list = QtWidgets.QListWidget()
         self.disconnect_btn = QtWidgets.QPushButton("Disconnect"); self.disconnect_btn.setObjectName("stopBtn")
         self.disconnect_btn.setEnabled(False)
@@ -96,6 +106,8 @@ class MasterUI(QtWidgets.QWidget):
         # Worker Resources Display - Clean and readable
         rgrp = QtWidgets.QGroupBox("Live Worker Resources", panel)
         r_l = QtWidgets.QVBoxLayout(rgrp)
+        r_l.setSpacing(6)
+        r_l.setContentsMargins(8, 20, 8, 8)
         self.resource_display = QtWidgets.QTextEdit()
         self.resource_display.setReadOnly(True)
         self.resource_display.setMinimumHeight(150)
@@ -132,14 +144,22 @@ class MasterUI(QtWidgets.QWidget):
         panel.setProperty("glass", True)
         lay = QtWidgets.QVBoxLayout(panel)
         lay.setSpacing(12)
+        lay.setContentsMargins(10, 15, 10, 10)
 
         hdr = QtWidgets.QLabel("📋 Task Management", panel)
         hdr.setObjectName("headerLabel"); hdr.setAlignment(QtCore.Qt.AlignCenter)
+        hf = hdr.font()
+        hf.setPointSize(13)
+        hf.setBold(True)
+        hdr.setFont(hf)
+        hdr.setMargin(6)
         lay.addWidget(hdr)
 
         # Create Task
         grp = QtWidgets.QGroupBox("Create Task", panel)
         g_l = QtWidgets.QVBoxLayout(grp)
+        g_l.setSpacing(6)
+        g_l.setContentsMargins(8, 15, 8, 8)
         # Add Task Type dropdown first
         self.task_type_combo = QtWidgets.QComboBox()
         self.task_type_combo.addItems([t.name for t in TaskType])
@@ -168,6 +188,8 @@ class MasterUI(QtWidgets.QWidget):
         # Task Queue
         tgrp = QtWidgets.QGroupBox("Task Queue", panel)
         t_l = QtWidgets.QVBoxLayout(tgrp)
+        t_l.setSpacing(6)
+        t_l.setContentsMargins(8, 15, 8, 8)
         self.tasks_table = QtWidgets.QTableWidget(0,7)
         self.tasks_table.setHorizontalHeaderLabels(["ID","Type","Status","Worker","Progress","Result","Output"])
         self.tasks_table.horizontalHeader().setStretchLastSection(True)
@@ -182,6 +204,16 @@ class MasterUI(QtWidgets.QWidget):
         self.tasks_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.tasks_table.setWordWrap(True)  # Enable word wrap
         self.tasks_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        # Improve header appearance
+        header = self.tasks_table.horizontalHeader()
+        hf = header.font()
+        hf.setBold(True)
+        header.setFont(hf)
+        header.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        # Make progress column narrow and output stretch
+        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        header.setSectionResizeMode(6, QHeaderView.Stretch)
+        self.tasks_table.setColumnWidth(4, 100)
         t_l.addWidget(self.tasks_table)
         clear_btn = QtWidgets.QPushButton("Clear Completed"); clear_btn.setObjectName("stopBtn")
         clear_btn.clicked.connect(self.clear_completed_tasks)
@@ -197,7 +229,7 @@ class MasterUI(QtWidgets.QWidget):
                 if workers:
                     for worker_id in workers.keys():
                         self.network.request_resources_from_worker(worker_id)
-                time.sleep(2)  # Update every 2 seconds for more real-time feel
+                time.sleep(10)
         threading.Thread(target=monitor, daemon=True).start()
 
     # ─── Event Handlers ───
@@ -370,9 +402,18 @@ class MasterUI(QtWidgets.QWidget):
             worker_item = QtWidgets.QTableWidgetItem(worker_text)
             self.tasks_table.setItem(row, 3, worker_item)
             
-            # Progress column
-            progress_item = QtWidgets.QTableWidgetItem(f"{t.progress}%")
-            self.tasks_table.setItem(row, 4, progress_item)
+            # Progress column - use QProgressBar widget for clarity
+            progress_widget = QtWidgets.QProgressBar()
+            try:
+                prog_val = int(getattr(t, 'progress', 0) or 0)
+            except Exception:
+                prog_val = 0
+            progress_widget.setRange(0, 100)
+            progress_widget.setValue(max(0, min(100, prog_val)))
+            progress_widget.setTextVisible(True)
+            progress_widget.setFormat(f"{progress_widget.value()}%")
+            progress_widget.setAlignment(QtCore.Qt.AlignCenter)
+            self.tasks_table.setCellWidget(row, 4, progress_widget)
             
             # Result column - show formatted summary (one line, readable)
             result_text = ""
@@ -435,8 +476,27 @@ class MasterUI(QtWidgets.QWidget):
             output_item.setTextAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
             self.tasks_table.setItem(row, 6, output_item)
             
+            # Color status cell for quick scanning
+            status_item = self.tasks_table.item(row, 2)
+            if status_item:
+                st = status_item.text().upper()
+                try:
+                    if st.startswith('COMPLETED') or 'SUCCESS' in st:
+                        color = QtGui.QColor(200, 255, 200)
+                    elif st.startswith('RUNNING') or st.startswith('IN_PROGRESS'):
+                        color = QtGui.QColor(255, 250, 200)
+                    elif st.startswith('FAILED') or 'ERROR' in st or st.startswith('CANCEL'):
+                        color = QtGui.QColor(255, 200, 200)
+                    else:
+                        color = QtGui.QColor(230, 230, 250)
+                    status_item.setBackground(QtGui.QBrush(color))
+                except Exception:
+                    pass
+
             # Set row height to accommodate wrapped text
-            self.tasks_table.setRowHeight(row, max(30, len(output_text.split('\n')) * 20))
+            lines = output_text.count('\n') + 1
+            estimated = max(40, min(300, lines * 18))
+            self.tasks_table.setRowHeight(row, estimated)
 
     def refresh_task_table_async(self):
         QtCore.QTimer.singleShot(0, self.refresh_task_table)

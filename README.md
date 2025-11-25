@@ -1,278 +1,265 @@
-# 🖥️ WinLink – Distributed Computing Desktop App
+# WinLink — Distributed Python Task Runner (FYP)
 
-WinLink is an advanced desktop application built with Python and PyQt5 that enables **distributed computing** across multiple PCs over LAN. A Master PC can distribute computational tasks to Worker PCs, utilizing their unused resources to perform heavy computations efficiently.
+**WinLink is a lightweight distributed desktop application that enables task distribution between master and worker PCs through PyQt5 GUIs, where the master sends tasks to remote workers over TCP, and workers execute them and report completion status back with real-time system monitoring.**
 
----
+This project was developed as a Final Year Project (FYP) to demonstrate distributed computing concepts, remote task dispatch, resource sharing, and system monitoring in an educational environment.
 
-## ✨ Features
+**Repository layout**
 
-### 🎛️ Master PC Capabilities
+- `master/` — Master GUI and logic (`master_ui.py`) for creating tasks, connecting workers, and monitoring the task queue.
+- `worker/` — Worker GUI and logic (`worker_ui.py`) that runs the worker service, accepts tasks, and reports status.
+- `core/` — Core primitives: networking, task manager, and task executor.
+- `assets/` — Shared UI styles and assets.
+- `main.py`, `launch_enhanced.py` — Start scripts for the application.
 
-- **Task Management**: Create and distribute computational tasks to worker PCs
-- **Worker Monitoring**: Real-time monitoring of connected worker PCs
-- **Resource Tracking**: Monitor CPU, RAM, and disk usage across all workers
-- **Task Templates**: Pre-built templates for common computational tasks
-- **Custom Code Execution**: Execute custom Python code on worker machines
-- **Task Queue Management**: Automatic task distribution and load balancing
+## 🚀 Key Features
 
-### 💼 Worker PC Capabilities
+### Master PC Capabilities:
+- **Task Creation & Dispatch**: Create Python tasks using built-in templates or custom code
+- **Worker Management**: Connect to multiple remote workers across the network
+- **Real-time Monitoring**: Monitor CPU, memory, and disk usage on all connected workers
+- **Task Queue Management**: View task progress, status, and execution logs in real-time
+- **Resource Control**: Set CPU and memory limits for each worker
 
-- **Task Execution**: Execute computational tasks safely in isolated environments
-- **Resource Sharing**: Share CPU, memory, and storage resources
-- **Resource Limits**: Configure maximum resource usage per task
-- **Real-time Monitoring**: Monitor system resources and task execution
-- **Task Logging**: Comprehensive logging of all task executions
-- **Security**: Safe execution environment with restricted imports
+### Worker PC Capabilities:
+- **Task Execution**: Receive and execute Python tasks from master
+- **Resource Sharing**: Configure CPU and memory limits to share with master
+- **Status Reporting**: Report task progress and completion back to master
+- **System Monitoring**: Share real-time system resource information
+- **Execution Logging**: Capture and display task output and errors
 
-### 🔧 Built-in Task Templates
+### Technical Features:
+- **JSON-over-TCP Protocol**: Simple and reliable communication between master and workers
+- **Multi-threading**: Concurrent task execution and UI responsiveness
+- **Cross-platform**: Works on Windows, Linux, and macOS
+- **Modern GUI**: PyQt5-based interface with animations and system tray integration
+- **Task Templates**: Pre-built templates for common computing tasks
+- **Safety Features**: Basic sandboxing and resource limits for task execution
 
-1. **Fibonacci Calculation** - Calculate large Fibonacci numbers
-2. **Prime Number Check** - Check if large numbers are prime
-3. **Matrix Multiplication** - Perform matrix operations
-4. **Data Analysis** - Statistical analysis of numerical datasets
+Requirements
 
----
+- Python 3.8+
+- See `requirements.txt` (PyQt5, psutil, optional PyInstaller for packaging)
 
-## 🚀 Getting Started
+Installation
 
-### Prerequisites
+1. Clone the repository and change to the project folder:
 
-- Windows 10/11
-- Python 3.7 or higher
-- Network connectivity between PCs
-
-### Installation
-
-1. **Clone or download this repository**
-
-```bash
+```powershell
 git clone <repository-url>
 cd WinLink-FYP
 ```
 
-2. **Install required dependencies**
+2. (Optional) Create a virtual environment and activate it:
 
-```bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+3. Install dependencies:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-3. **Run the application**
+Running the app
 
-```bash
+- Start the Master UI:
+
+```powershell
 python main.py
 ```
 
+- On worker machines, start the Worker UI and configure the port and resource sharing options. Then click `Start Worker` to listen for tasks.
+
+Master UI overview (`master/master_ui.py`)
+
+- Worker management panel: discover/connect to workers, view their current CPU/memory usage, and configured limits.
+- Task queue: create tasks from built-in templates or submit custom Python code. The queue displays task name, assigned worker, progress (progress bar), status (with color), and output preview.
+- Task creation form supports common templates and direct code entry.
+
+Worker UI overview (`worker/worker_ui.py`)
+
+- Share Resources: set maximum CPU share and memory cap that the worker presents to the Master.
+- Execution log: view the live stdout/stderr of tasks run on this worker; responsive sizing for small screens.
+- Start/Stop worker controls with clear padding and spacing for accessibility.
+
+Core components (`core/`)
+
+- `network.py`: Implements a small JSON-over-TCP protocol used by Master and Worker to exchange messages (task submission, status updates, heartbeats).
+- `task_manager.py`: Tracks tasks on the Master (queued, running, finished) and provides APIs for scheduling/dispatching.
+- `task_executor.py`: Runs tasks on the Worker, captures stdout/stderr, reports progress, and enforces basic timeouts.
+
+Message format (example)
+
+- Task submission (Master -> Worker):
+
+```json
+{
+  "type": "task_submit",
+  "task_id": "1234",
+  "metadata": {"name": "Example Task"},
+  "code": "print('Hello from worker')",
+  "resources": {"max_cpu": 50, "max_memory_mb": 512}
+}
+```
+
+- Task progress update (Worker -> Master):
+
+```json
+{
+  "type": "task_update",
+  "task_id": "1234",
+  "status": "running",
+  "progress": 42,
+  "stdout": "Partial output..."
+}
+```
+
+Security and sandboxing
+
+This project implements only a prototype-level sandboxing approach (restricted builtins and a module whitelist) for educational purposes. It is NOT safe for running untrusted code in a production environment. Recommended hardening (outside the repo scope):
+
+- Run tasks inside OS-level containers (Docker), restricted VMs, or separate processes with namespace / capability restrictions.
+- Use OS user isolation, cgroups, and seccomp policies for Linux.
+
+Packaging
+
+- You can package the GUIs using PyInstaller (see `requirements.txt` for the package). Typical usage:
+
+```powershell
+pip install pyinstaller
+pyinstaller --onefile --windowed main.py
+```
+
+Troubleshooting
+
+- If the UI is unresponsive, ensure the Qt event loop is running and background threads report via Qt signals or timers.
+- If Workers don't appear in Master, verify firewall/port settings and that Workers are started and listening on the configured port.
+- If a task fails with an ImportError for missing modules, ensure the Worker environment has required libraries installed.
+
+Developer notes
+
+- UI files: `master/master_ui.py`, `worker/worker_ui.py` — primary places for layout and styling changes.
+- Shared styles: `assets/styles.py`.
+- Use `python -m py_compile <file>` to quickly check for syntax errors during edits.
+
+Contributing
+
+This repository was built as an academic project and is open for improvements. If you add features, please follow the existing code style and keep UI changes consistent with the project's stylesheet.
+
+Contact
+
+If you need help adapting WinLink for your environment or preparing a demo for your FYP defense, open an issue or contact the project owner.
+
 ---
 
-## 📖 How to Use
+Generated by the WinLink FYP development process — updated README to reflect current project structure and usage.
+... (truncated for brevity) ...
 
-### Setting Up a Worker PC
+## Quick Overview
 
-1. **Launch the Application**
+- Master: UI to add/connect workers, create tasks from templates or custom code, monitor task queue and worker resources (`master/master_ui.py`).
+- Worker: UI to configure and start a worker service that accepts tasks from the master (`worker/worker_ui.py`).
+- Core: task management, execution and network protocol live in the `core/` package.
 
-   - Run `python main.py`
-   - Select "Worker PC" from the role selection screen
+## Features
 
-2. **Configure Worker Settings**
+- Create and dispatch Python tasks to worker machines
+- Monitor CPU / memory / disk usage on workers
+- Configure resource sharing and limits per worker
+- View task logs and outputs in the UIs
 
-   - Enter a port number (e.g., 5001)
-   - Choose which resources to share (CPU, Memory, Storage)
-   - Set resource limits (Max CPU %, Max Memory per task)
+## Requirements
 
-3. **Start Worker Service**
-   - Click "Start Worker Service"
-   - Note the IP:Port combination displayed
-   - Worker is now ready to receive tasks
+- Python 3.8+ (3.7 may work but 3.8+ recommended)
+- Packages listed in `requirements.txt` (PyQt5, psutil)
 
-### Setting Up a Master PC
+## Installation
 
-1. **Launch the Application**
+1. Clone the repository and change to the project folder:
 
-   - Run `python main.py`
-   - Select "Master PC" from the role selection screen
+```powershell
+git clone <repository-url>
+cd WinLink-FYP
+```
 
-2. **Connect to Workers**
+2. (Optional) Create and activate a virtual environment:
 
-   - Enter Worker IP and Port in the "Add Worker" section
-   - Click "Connect" to establish connection
-   - Repeat for multiple workers
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-3. **Create and Submit Tasks**
+3. Install dependencies:
 
-   - Choose a task template from the dropdown
-   - Modify task code if needed
-   - Adjust task data (JSON format)
-   - Click "Submit Task" to send to workers
+```powershell
+pip install -r requirements.txt
+```
 
-4. **Monitor Task Execution**
-   - View task queue and status in real-time
-   - Monitor worker resource usage
-   - See task results and execution times
+## Running the App
 
----
+- Launch the role selector (recommended):
 
-## 🏗️ Architecture
+```powershell
+python main.py
+```
 
-### Core Components
+- Or run an enhanced launcher (if present):
+
+```powershell
+python launch_enhanced.py
+```
+
+Notes:
+- To run the Master UI directly: `python master/master_ui.py`
+- To run the Worker UI directly: `python worker/worker_ui.py`
+
+## Folder Structure
 
 ```
 WinLink-FYP/
-├── core/                    # Core distributed computing modules
-│   ├── task_manager.py      # Task creation and management
-│   ├── task_executor.py     # Safe task execution engine
-│   └── network.py           # Network communication protocol
-├── master/                  # Master PC interface
-│   └── master_ui_enhanced.py # Enhanced master UI
-├── worker/                  # Worker PC interface
-│   └── worker_ui_enhanced.py # Enhanced worker UI
-├── assets/                  # UI styles and assets
-│   └── styles.py            # Application styling
-├── main.py                  # Application entry point
-└── role_select.py           # Role selection screen
+├── core/                    # Task manager, executor, networking
+├── master/                  # Master UI
+│   └── master_ui.py
+├── worker/                  # Worker UI
+│   └── worker_ui.py
+├── assets/                  # Styles and assets
+│   └── styles.py
+├── main.py                  # Entry / role selector
+├── launch_enhanced.py      # Optional enhanced launcher
+└── requirements.txt        # Python dependencies
 ```
 
-### Communication Protocol
+## Usage Basics
 
-- **TCP Socket Communication**: Reliable connection between Master and Workers
-- **JSON Message Format**: Structured data exchange
-- **Message Types**: Task requests, resource data, heartbeats, results
-- **Automatic Reconnection**: Handles network interruptions gracefully
+Master:
+- Connect workers by entering their IP and port.
+- Create tasks using templates or by pasting Python code.
+- Submit tasks and watch the Task Queue update (progress/results).
 
-### Security Features
+Worker:
+- Configure which resources to share and set limits.
+- Start the worker service and copy the displayed IP:PORT to the Master.
 
-- **Sandboxed Execution**: Tasks run in isolated Python namespaces
-- **Resource Limits**: CPU and memory usage restrictions per task
-- **Safe Imports**: Only whitelisted Python modules allowed
-- **Timeout Protection**: Tasks have maximum execution time limits
+## Development & Packaging
 
----
+- To package the app, `pyinstaller` can be used (optional dependency in `requirements.txt`).
 
-## 🔧 Technical Specifications
+Example:
 
-### Task Execution Environment
-
-- **Execution Timeout**: 5 minutes maximum per task
-- **Memory Limit**: 512MB maximum per task (configurable)
-- **Allowed Modules**: math, statistics, random, datetime, json, re
-- **Safe Built-ins**: Core Python functions only, no file system access
-
-### Performance Features
-
-- **Parallel Processing**: Multiple tasks can run simultaneously
-- **Load Balancing**: Tasks distributed across available workers
-- **Resource Monitoring**: Real-time system resource tracking
-- **Automatic Cleanup**: Completed tasks are automatically cleaned up
-
-### Network Requirements
-
-- **Protocol**: TCP/IP
-- **Ports**: User-configurable (default: 5001+)
-- **Bandwidth**: Minimal - only task code and results transferred
-- **Latency**: Low latency LAN recommended for best performance
-
----
-
-## 📊 Use Cases
-
-### 🧮 Scientific Computing
-
-- Mathematical simulations and calculations
-- Statistical analysis of large datasets
-- Numerical modeling and optimization
-
-### 🔬 Research Applications
-
-- Data processing and analysis
-- Algorithm testing and benchmarking
-- Parallel computation experiments
-
-### 🏢 Educational Projects
-
-- Distributed systems learning
-- Computer networking demonstrations
-- Performance comparison studies
-
-### 💻 Development & Testing
-
-- Code execution across different environments
-- Performance testing on various hardware
-- Distributed application prototyping
-
----
-
-## 🛠️ Build Executable
-
-To create standalone executables:
-
-```bash
-# Install PyInstaller
+```powershell
 pip install pyinstaller
-
-# Build Master PC executable
-pyinstaller --onefile --windowed --name "WinLink-Master" main.py
-
-# Build Worker PC executable
-pyinstaller --onefile --windowed --name "WinLink-Worker" main.py
+pyinstaller --onefile --windowed --name "WinLink" main.py
 ```
 
----
+## Troubleshooting
 
-## 🔍 Troubleshooting
+- If workers do not connect, check Windows Firewall or antivirus blocking sockets.
+- Ensure both machines are on the same LAN and ports are reachable.
+- For task JSON errors, verify the JSON structure in the task data field.
 
-### Common Issues
+## Contributing
 
-**Connection Failed**
-
-- Verify IP addresses and ports
-- Check Windows Firewall settings
-- Ensure both PCs are on the same network
-
-**Task Execution Errors**
-
-- Check task code syntax
-- Verify JSON data format
-- Review worker resource limits
-
-**Performance Issues**
-
-- Monitor worker CPU/memory usage
-- Reduce task complexity or data size
-- Increase worker resource limits
-
-### Firewall Configuration
-
-Windows may block the application. Add firewall exceptions:
-
-1. Open Windows Defender Firewall
-2. Click "Allow an app through firewall"
-3. Add Python.exe or the built executable
-
----
-
-## 📈 Future Enhancements
-
-- **GPU Computing**: CUDA/OpenCL task support
-- **Web Interface**: Browser-based management console
-- **Task Scheduling**: Advanced scheduling algorithms
-- **Fault Tolerance**: Automatic task retry and failover
-- **Encryption**: Secure communication protocols
-- **Docker Integration**: Containerized task execution
-
----
-
-## 👨‍💻 Developer Information
-
-**Project**: Final Year Project (FYP)  
-**Technology Stack**: Python, PyQt5, Socket Programming, psutil  
-**Architecture**: Client-Server with Distributed Computing  
-**Platform**: Windows (Linux/Mac compatible with minor modifications)
-
----
-
-## 📜 License
-
-This project is developed as a Final Year Project (FYP) for educational purposes.
-
----
-
-**WinLink** - Transforming low-spec PCs into high-performance distributed computing clusters! 🚀
+- This project was developed as an FYP. Contributions are welcome — open an issue or PR.

@@ -70,7 +70,7 @@ class WorkerUI(QWidget):
         self.setStyleSheet(STYLE_SHEET)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(6)
 
         # Header
         title = QLabel("WinLink – Worker PC (Enhanced)")
@@ -91,12 +91,12 @@ class WorkerUI(QWidget):
         panel = QFrame()
         panel.setProperty("glass", True)
         layout = QVBoxLayout(panel)
-        layout.setSpacing(16)
+        layout.setSpacing(2)
 
         # — Connection Settings —
         conn_gb = QGroupBox("Connection Settings")
         conn_layout = QVBoxLayout(conn_gb)
-        conn_layout.setContentsMargins(12, 12, 12, 12)
+        conn_layout.setContentsMargins(12, 20, 12, 12)
         conn_layout.setSpacing(8)
 
         self.ip_label = QLabel("IP Address: –")
@@ -105,6 +105,12 @@ class WorkerUI(QWidget):
         self.port_input.setPlaceholderText("Port (e.g. 5001)")
         self.port_input.setValidator(QIntValidator(1, 65535))
         self.port_input.setObjectName("portInput")
+        # Improve visibility and sizing for input
+        self.port_input.setFixedHeight(28)
+        p_font = self.port_input.font()
+        p_font.setPointSize(max(10, p_font.pointSize()))
+        self.port_input.setFont(p_font)
+        self.port_input.setStyleSheet("QLineEdit { padding: 6px; color: #e6e6fa; background: rgba(255,255,255,0.06); border-radius: 6px; }")
 
         conn_layout.addWidget(self.ip_label)
         conn_layout.addWidget(self.port_input)
@@ -116,7 +122,7 @@ class WorkerUI(QWidget):
         share_gb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
 
         share_layout = QVBoxLayout(share_gb)
-        share_layout.setContentsMargins(12, 12, 12, 12)
+        share_layout.setContentsMargins(12, 20, 12, 12)
         share_layout.setSpacing(8)
 
         # push items up
@@ -131,33 +137,72 @@ class WorkerUI(QWidget):
             cb.setChecked(default)
             share_layout.addWidget(cb)
 
-        # Limits
-        limits = QFormLayout()
-        limits.setContentsMargins(0, 8, 0, 0)
-        limits.setHorizontalSpacing(10)
-        limits.setVerticalSpacing(6)
+        # # --- LIMITS SECTION (Responsive UI) ---
+        # limits = QFormLayout()
+        # limits.setContentsMargins(0, 12, 0, 0)
+        # limits.setHorizontalSpacing(18)
 
-        self.cpu_limit = QSpinBox()
-        self.cpu_limit.setRange(10, 100)
-        self.cpu_limit.setValue(80)
-        self.cpu_limit.setSuffix("%")
-        self.cpu_limit.setFixedHeight(20)  # Increased height
-        self.cpu_limit.setMinimumWidth(120)
-        self.cpu_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # # Make the form responsive
+        # limits.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        # limits.setLabelAlignment(Qt.AlignLeft)
 
-        self.mem_limit = QSpinBox()
-        self.mem_limit.setRange(256, 8192)
-        self.mem_limit.setValue(512)
-        self.mem_limit.setSuffix(" MB")
-        self.mem_limit.setFixedHeight(20)  # Increased height
-        self.mem_limit.setMinimumWidth(120)
-        self.mem_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # spinbox_style = """
+        # QSpinBox {
+        #     color: #e6e6fa;
+        #     background: rgba(255,255,255,0.08);
+        #     border: 1px solid rgba(255,255,255,0.12);
+        #     border-radius: 6px;
+        # }
+        # """
 
+        # # CPU SPINBOX
+        # self.cpu_limit = QSpinBox()
+        # self.cpu_limit.setRange(10, 100)
+        # self.cpu_limit.setValue(80)
+        # self.cpu_limit.setSuffix("%")
+        # self.cpu_limit.setAlignment(Qt.AlignCenter)
+        # self.cpu_limit.setStyleSheet(spinbox_style)
 
-        limits.addRow("Max CPU:", self.cpu_limit)
-        limits.addRow("Max Memory:", self.mem_limit)
+        # self.cpu_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        share_layout.addLayout(limits)
+        # # MEMORY SPINBOX
+        # self.mem_limit = QSpinBox()
+        # self.mem_limit.setRange(256, 8192)
+        # self.mem_limit.setValue(512)
+        # self.mem_limit.setSuffix(" MB")
+        # self.mem_limit.setAlignment(Qt.AlignCenter)
+        # self.mem_limit.setStyleSheet(spinbox_style)
+
+        # self.mem_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # # LABELS
+        # lbl_cpu = QLabel("Max CPU:")
+        # lbl_cpu.setObjectName("dataLabel")
+        # lbl_cpu.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # lbl_mem = QLabel("Max Memory:")
+        # lbl_mem.setObjectName("dataLabel")
+        # lbl_mem.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+        # # ROW WRAPPERS TO FORCE PROPER RESIZING
+        # cpu_row = QWidget()
+        # cpu_layout = QHBoxLayout(cpu_row)
+        # cpu_layout.setContentsMargins(0, 0, 0, 0)
+        # cpu_layout.addWidget(self.cpu_limit)
+        # cpu_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # mem_row = QWidget()
+        # mem_layout = QHBoxLayout(mem_row)
+        # mem_layout.setContentsMargins(0, 0, 0, 0)
+        # mem_layout.addWidget(self.mem_limit)
+        # mem_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # # Add rows
+        # limits.addRow(lbl_cpu, cpu_row)
+        # limits.addRow(lbl_mem, mem_row)
+
+        # share_layout.addLayout(limits)
+
         share_layout.addStretch()
         layout.addWidget(share_gb)
 
@@ -191,14 +236,25 @@ class WorkerUI(QWidget):
         self.start_btn = QPushButton("Start Worker")
         self.start_btn.setObjectName("startBtn")
         self.start_btn.clicked.connect(self.start_worker)
+        # Give the start button more padding and height for touch/small screens
+        self.start_btn.setFixedHeight(36)
+        self.start_btn.setStyleSheet("QPushButton#startBtn { padding: 10px 14px; }")
 
         self.stop_btn = QPushButton("Stop Worker")
         self.stop_btn.setObjectName("stopBtn")
         self.stop_btn.clicked.connect(self.stop_worker)
         self.stop_btn.setEnabled(False)
+        self.stop_btn.setFixedHeight(36)
+        self.stop_btn.setStyleSheet("QPushButton#stopBtn { padding: 10px 14px; }")
 
-        layout.addWidget(self.start_btn)
-        layout.addWidget(self.stop_btn)
+        # Container to add top margin above the buttons and keep them stacked
+        btn_container = QFrame()
+        btn_layout = QVBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 12, 0, 0)  # top margin
+        btn_layout.setSpacing(8)
+        btn_layout.addWidget(self.start_btn)
+        btn_layout.addWidget(self.stop_btn)
+        layout.addWidget(btn_container)
 
         layout.addStretch()
         self.apply_shadow(panel)
@@ -214,7 +270,7 @@ class WorkerUI(QWidget):
         # Current Tasks
         tasks_gb = QGroupBox("Current Tasks")
         v = QVBoxLayout(tasks_gb)
-        v.setContentsMargins(8, 8, 8, 8)
+        v.setContentsMargins(8, 20, 8, 8)
         self.tasks_display = QTextEdit()
         self.tasks_display.setObjectName("tasksDisplay")
         self.tasks_display.setReadOnly(True)
@@ -227,7 +283,7 @@ class WorkerUI(QWidget):
         # Task Output Display
         output_gb = QGroupBox("Task Output")
         ov = QVBoxLayout(output_gb)
-        ov.setContentsMargins(8, 8, 8, 8)
+        ov.setContentsMargins(8, 20, 8, 8)
         self.task_output_display = QTextEdit()
         self.task_output_display.setObjectName("tasksDisplay")
         self.task_output_display.setReadOnly(True)
@@ -240,7 +296,7 @@ class WorkerUI(QWidget):
         # System Resources
         res_gb = QGroupBox("System Resources")
         rv = QVBoxLayout(res_gb)
-        rv.setContentsMargins(8, 8, 8, 8)
+        rv.setContentsMargins(8, 20, 8, 8)
 
         # Build and stash bar layouts
         self.cpu_bar_layout  = self._make_bar("CPU Usage:",    "#00f5a0")
@@ -270,16 +326,28 @@ class WorkerUI(QWidget):
         # Task Log - Make it visible and properly sized (MUST BE VISIBLE)
         log_gb = QGroupBox("Task Execution Log")
         lv = QVBoxLayout(log_gb)
-        lv.setContentsMargins(8, 8, 8, 8)
+        # Slightly smaller top margin so log fits on narrow screens
+        lv.setContentsMargins(8, 10, 8, 8)
+        lv.setSpacing(8)
+
         self.task_log = QTextEdit()
         self.task_log.setReadOnly(True)
-        self.task_log.setMinimumHeight(100)
-        self.task_log.setMaximumHeight(180)
+        # Allow the log to expand on larger screens and shrink on small screens
+        self.task_log.setMinimumHeight(80)
+        self.task_log.setMaximumHeight(400)
+        self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.task_log.setPlainText("Task execution log will appear here...")
+
+        # Buttons row - keep horizontal but with tighter spacing
         btns = QHBoxLayout()
-        c = QPushButton("Clear");  c.clicked.connect(self.task_log.clear)
-        e = QPushButton("Export"); e.clicked.connect(self.export_log)
+        btns.setContentsMargins(0, 6, 0, 0)
+        btns.setSpacing(8)
+        c = QPushButton("Clear")
+        c.clicked.connect(self.task_log.clear)
+        e = QPushButton("Export")
+        e.clicked.connect(self.export_log)
         btns.addWidget(c); btns.addWidget(e); btns.addStretch()
+
         lv.addWidget(self.task_log)
         lv.addLayout(btns)
         layout.addWidget(log_gb)
@@ -521,9 +589,25 @@ class WorkerUI(QWidget):
         plugged = r.get('battery_plugged')
 
         self.cpu_bar.setValue(int(cpu))
-        self.cpu_label.setText(f"{cpu:.1f}%")
+        # Read configured limits
+        try:
+            cpu_limit_val = int(self.cpu_limit.value())
+        except Exception:
+            cpu_limit_val = 100
+        try:
+            mem_limit_val = int(self.mem_limit.value())
+        except Exception:
+            mem_limit_val = 8192
+
+        # Update bars with actual usage
+        self.cpu_bar.setValue(int(cpu))
+        # Show both actual and configured limit in the label for clarity
+        capped_cpu = min(cpu, cpu_limit_val)
+        self.cpu_label.setText(f"{cpu:.1f}% (limit {cpu_limit_val}%)")
+
         self.mem_bar.setValue(int(mem))
-        self.mem_label.setText(f"{mem:.1f}%")
+        # mem is a percent; show percent and limit in MB
+        self.mem_label.setText(f"{mem:.1f}% (limit {mem_limit_val} MB)")
         self.disk_bar.setValue(int(disk))
         self.disk_label.setText(f"{disk:.1f}%")
 
@@ -548,6 +632,15 @@ class WorkerUI(QWidget):
             f"Free Disk Space: {r.get('disk_free_gb', 0):.1f} GB\n"
             f"Battery: {battery_str}\n"
             f"Active Tasks: {active_tasks}"
+        )
+        # Append configured limits and effective (capped) values
+        details += (
+            f"\n\nConfigured Limits:\n"
+            f" - Max CPU: {cpu_limit_val}%\n"
+            f" - Max Memory: {mem_limit_val} MB\n"
+            f"\nEffective Usage:\n"
+            f" - CPU (actual / capped): {cpu:.1f}% / {min(cpu, cpu_limit_val):.1f}%\n"
+            f" - Memory (percent): {mem:.1f}% (Limit in MB shown above)"
         )
         self.res_details.setPlainText(details)
 
