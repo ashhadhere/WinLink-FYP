@@ -117,8 +117,11 @@ class MasterNetwork:
     
     def request_resources_from_worker(self, worker_id: str) -> bool:
         """Request system resource data from a worker"""
-        msg = NetworkMessage(MessageType.RESOURCE_REQUEST)
-        return self._send_message_to_worker(worker_id, msg)
+        print(f"[NETWORK] Requesting resources from {worker_id}")
+        msg = NetworkMessage(MessageType.RESOURCE_REQUEST, {})
+        result = self._send_message_to_worker(worker_id, msg)
+        print(f"[NETWORK] Resource request sent to {worker_id}: {result}")
+        return result
     
     def _send_message_to_worker(self, worker_id: str, message: NetworkMessage) -> bool:
         """Send a message to a worker"""
@@ -162,6 +165,8 @@ class MasterNetwork:
     
     def _handle_worker_message(self, worker_id: str, message: NetworkMessage):
         """Handle a message from a worker"""
+        print(f"[MASTER NETWORK] Received message from {worker_id}, type: {message.type}")
+        
         # Update last heartbeat
         with self.lock:
             if worker_id in self.worker_info:
@@ -169,7 +174,10 @@ class MasterNetwork:
         
         # Call registered handler
         if message.type in self.message_handlers:
+            print(f"[MASTER NETWORK] Calling handler for {message.type}")
             self.message_handlers[message.type](worker_id, message.data)
+        else:
+            print(f"[MASTER NETWORK] No handler registered for {message.type}")
     
     def _remove_worker(self, worker_id: str):
         """Remove a worker from active connections"""
@@ -287,21 +295,29 @@ class WorkerNetwork:
     
     def _handle_master_message(self, message: NetworkMessage):
         """Handle a message from master"""
+        print(f"[WORKER NETWORK] Received message type: {message.type}")
         if message.type in self.message_handlers:
+            print(f"[WORKER NETWORK] Handler found for {message.type}, calling handler")
             self.message_handlers[message.type](message.data)
         elif message.type == MessageType.DISCONNECT:
             self.stop()
+        else:
+            print(f"[WORKER NETWORK] No handler for message type: {message.type}")
     
     def send_message_to_master(self, message: NetworkMessage) -> bool:
         """Send a message to the master"""
         if not self.client_socket:
+            print(f"[WORKER NETWORK] ERROR: No client socket available to send {message.type}")
             return False
         
         try:
-            self.client_socket.send(message.to_json().encode() + b'\n')
+            json_data = message.to_json()
+            print(f"[WORKER NETWORK] Sending {message.type} to master: {len(json_data)} bytes")
+            self.client_socket.send(json_data.encode() + b'\n')
+            print(f"[WORKER NETWORK] Message {message.type} sent successfully")
             return True
         except Exception as e:
-            print(f"Failed to send message to master: {e}")
+            print(f"[WORKER NETWORK] ERROR sending message to master: {e}")
             return False
     
     def send_task_result(self, task_id: str, result_data: Dict) -> bool:
@@ -314,8 +330,11 @@ class WorkerNetwork:
     
     def send_resource_data(self, resource_data: Dict) -> bool:
         """Send system resource data to master"""
+        print(f"[WORKER NETWORK] Preparing to send resource data: {list(resource_data.keys())}")
         msg = NetworkMessage(MessageType.RESOURCE_DATA, resource_data)
-        return self.send_message_to_master(msg)
+        result = self.send_message_to_master(msg)
+        print(f"[WORKER NETWORK] Resource data sent: {result}")
+        return result
     
     def stop(self):
         """Stop the worker network"""

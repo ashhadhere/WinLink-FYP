@@ -49,10 +49,16 @@ class WorkerUI(QWidget):
 
     def handle_resource_request(self, data):
         try:
+            self.log("📊 Resource request received from master")
             resource_data = self.task_executor.get_system_resources()
-            self.network.send_resource_data(resource_data)
+            self.log(f"📤 Sending resources: CPU={resource_data.get('cpu_percent', 0):.1f}%, RAM={resource_data.get('memory_available_mb', 0):.0f}MB available")
+            success = self.network.send_resource_data(resource_data)
+            if success:
+                self.log("✅ Resource data sent successfully")
+            else:
+                self.log("❌ Failed to send resource data")
         except Exception as e:
-            self.log(f"Error in handle_resource_request: {e}")
+            self.log(f"❌ Error in handle_resource_request: {e}")
 
     def handle_heartbeat(self, data):
         msg = NetworkMessage(MessageType.HEARTBEAT_RESPONSE, {
