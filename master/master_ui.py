@@ -218,7 +218,7 @@ class MasterUI(QtWidgets.QWidget):
         else:
             QtWidgets.QMessageBox.information(self, "Connected", f"Connected to {worker_id}")
             # Request resources immediately and repeatedly to ensure we get data
-            self.resource_display.setPlainText(f"✅ Connected to {worker_id}\n\n🔄 Requesting resources...")
+            self.resource_display.setPlainText(f"✅ Connected to {worker_id}\n\n⏳ Waiting for resource data...")
             QtCore.QTimer.singleShot(300, lambda: self.network.request_resources_from_worker(worker_id))
             QtCore.QTimer.singleShot(1000, lambda: self.network.request_resources_from_worker(worker_id))
             QtCore.QTimer.singleShot(2000, lambda: self.network.request_resources_from_worker(worker_id))
@@ -505,7 +505,7 @@ class MasterUI(QtWidgets.QWidget):
             else:
                 print(f"[DEBUG] ⏳ {len(connected_workers)} workers connected but no data yet")
                 QtCore.QTimer.singleShot(0, lambda: self.resource_display.setPlainText(
-                    f"🔄 Connected to {len(connected_workers)} worker(s)\n\nWaiting for resource data..."
+                    f"✅ Connected to {len(connected_workers)} worker(s)\n\n⏳ Loading resource data..."
                 ))
             return
         
@@ -619,9 +619,6 @@ class MasterUI(QtWidgets.QWidget):
         # Request from all workers
         for worker_id in workers.keys():
             self.network.request_resources_from_worker(worker_id)
-        
-        # Show refreshing message
-        self.resource_display.setPlainText(f"🔄 Refreshing resources from {len(workers)} worker(s)...\n\nPlease wait...")
 
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:

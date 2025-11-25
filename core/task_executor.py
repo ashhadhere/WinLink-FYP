@@ -161,18 +161,37 @@ class TaskExecutor:
     def get_system_resources(self):
         """Return snapshot of current system resources"""
         try:
+            import os
+            import platform
+            
             battery = psutil.sensors_battery()
             mem = psutil.virtual_memory()
-            return {
+            
+            # Get disk usage - handle Windows vs Unix
+            if platform.system() == "Windows":
+                # Use the system drive (typically C:\)
+                disk_path = os.getenv("SystemDrive", "C:") + "\\"
+            else:
+                disk_path = "/"
+            
+            disk = psutil.disk_usage(disk_path)
+            
+            resources = {
                 "cpu_percent": psutil.cpu_percent(interval=0.2),
                 "memory_percent": mem.percent,
                 "memory_total_mb": mem.total / (1024 * 1024),
                 "memory_available_mb": mem.available / (1024 * 1024),
-                "disk_percent": psutil.disk_usage("/").percent,
-                "disk_free_gb": psutil.disk_usage("/").free / (1024 ** 3),
+                "disk_percent": disk.percent,
+                "disk_free_gb": disk.free / (1024 ** 3),
                 "battery_percent": battery.percent if battery else None,
                 "battery_plugged": battery.power_plugged if battery else None,
             }
+            
+            print(f"[TASK_EXECUTOR] Collected resources: CPU={resources['cpu_percent']:.1f}%, RAM Available={resources['memory_available_mb']:.0f}MB, Disk Free={resources['disk_free_gb']:.1f}GB")
+            
+            return resources
         except Exception as e:
             print(f"[ERROR] Failed to get system resources: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
