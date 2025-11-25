@@ -470,24 +470,33 @@ class MasterUI(QtWidgets.QWidget):
     def handle_resource_data(self, worker_id, data):
         """Handle incoming resource data from workers"""
         print(f"[DEBUG] Received resource data from {worker_id}: {list(data.keys())}")
+        print(f"[DEBUG] CPU: {data.get('cpu_percent')}%, RAM Available: {data.get('memory_available_mb')}MB")
         
         with self.worker_resources_lock:
             self.worker_resources[worker_id] = data
+            print(f"[DEBUG] Worker resources stored. Total workers: {len(self.worker_resources)}")
         
         # Immediately update the display
+        print(f"[DEBUG] Calling update_resource_display()")
         self.update_resource_display()
     
     def update_resource_display(self):
         """Update the resource display with current worker data"""
+        print(f"[DEBUG] update_resource_display() called")
+        
         def format_and_update():
+            print(f"[DEBUG] format_and_update() executing")
             snapshot = self._get_worker_resources_snapshot()
+            print(f"[DEBUG] Snapshot has {len(snapshot)} workers")
             
             # Check if we have connected workers but no resources yet
             connected_workers = self.network.get_connected_workers()
             if not snapshot and not connected_workers:
+                print(f"[DEBUG] No snapshot, no workers - showing waiting message")
                 self.resource_display.setPlainText("⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here.")
                 return
             elif not snapshot and connected_workers:
+                print(f"[DEBUG] No snapshot but {len(connected_workers)} connected - showing connecting message")
                 self.resource_display.setPlainText(f"🔄 Connected to {len(connected_workers)} worker(s)\n\nWaiting for resource data...")
                 return
             
@@ -498,6 +507,7 @@ class MasterUI(QtWidgets.QWidget):
             output.append("")
             
             for wid, stats in snapshot.items():
+                print(f"[DEBUG] Processing worker {wid}")
                 # Extract worker IP
                 worker_ip = wid.split(":")[0] if ":" in wid else wid
                 
@@ -511,6 +521,8 @@ class MasterUI(QtWidgets.QWidget):
                 disk_free_gb = stats.get("disk_free_gb", 0.0)
                 battery = stats.get("battery_percent")
                 plugged = stats.get("battery_plugged")
+                
+                print(f"[DEBUG] Worker stats - CPU: {cpu}%, MEM: {mem_percent}%, Available: {mem_avail_mb}MB")
                 
                 # Status indicator
                 def status(val):
@@ -545,9 +557,15 @@ class MasterUI(QtWidgets.QWidget):
                 
                 output.append("")
             
-            self.resource_display.setPlainText("\n".join(output))
+            final_text = "\n".join(output)
+            print(f"[DEBUG] Generated output text ({len(final_text)} chars), first 200 chars:")
+            print(f"[DEBUG] {final_text[:200]}")
+            print(f"[DEBUG] Calling setPlainText on resource_display")
+            self.resource_display.setPlainText(final_text)
+            print(f"[DEBUG] setPlainText completed")
         
         # Run on Qt main thread
+        print(f"[DEBUG] Scheduling format_and_update on Qt thread")
         QtCore.QTimer.singleShot(0, format_and_update)
         self.refresh_workers_async()
 
@@ -597,7 +615,11 @@ class MasterUI(QtWidgets.QWidget):
 
     def _get_worker_resources_snapshot(self):
         with self.worker_resources_lock:
-            return {wid: data.copy() for wid, data in self.worker_resources.items()}
+            snapshot = {wid: data.copy() for wid, data in self.worker_resources.items()}
+            print(f"[DEBUG] _get_worker_resources_snapshot returning {len(snapshot)} workers")
+            for wid in snapshot.keys():
+                print(f"[DEBUG]   - {wid}")
+            return snapshot
 
     def closeEvent(self, event: QtGui.QCloseEvent):
         """Handle window close event - cleanup resources"""
