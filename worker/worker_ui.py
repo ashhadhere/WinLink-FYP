@@ -363,8 +363,9 @@ class WorkerUI(QWidget):
                 "memory_used_mb": 0,
                 "output": None
             }
-        self._refresh_tasks_display()
-        self._refresh_output_display()
+        # Schedule UI updates on the Qt main thread
+        QTimer.singleShot(0, self._refresh_tasks_display)
+        QTimer.singleShot(0, self._refresh_output_display)
 
         def run_task():
             self.log(f"▶️ Starting execution of task: {task_id}")
@@ -430,7 +431,8 @@ class WorkerUI(QWidget):
                 memory_used_mb=memory_used_mb,
                 output=output_text
             )
-            self._schedule_task_cleanup(task_id)
+            # Schedule cleanup on the Qt main thread
+            QTimer.singleShot(0, lambda: self._schedule_task_cleanup(task_id))
 
         threading.Thread(target=run_task, daemon=True).start()
 
@@ -523,8 +525,9 @@ class WorkerUI(QWidget):
             state.update(updates)
             if updates.get("output"):
                 self.last_output_text = updates["output"]
-        self._refresh_tasks_display()
-        self._refresh_output_display()
+        # Schedule UI updates on the Qt main thread
+        QTimer.singleShot(0, self._refresh_tasks_display)
+        QTimer.singleShot(0, self._refresh_output_display)
 
     def _refresh_tasks_display(self):
         with self.tasks_lock:
