@@ -1,11 +1,14 @@
 @echo off
-REM WinLink - Automated Windows Deployment
-REM This script will set up everything needed to run WinLink
-
 title WinLink - Automated Setup
 
-echo 🚀 WinLink - Automated Windows Setup
-echo =============================================
+cls
+echo.
+echo ========================================
+echo     WinLink - Windows Setup
+echo ========================================
+echo.
+echo Automated installation and configuration
+echo ========================================
 echo.
 
 echo 📋 This script will:
@@ -211,12 +214,15 @@ if "%launch_choice%"=="1" (
 )
 
 echo.
-echo 🎉 WinLink setup completed!
+echo ========================================
+echo Setup Completed Successfully!
+echo ========================================
 echo.
-echo 📚 For more information:
-echo   - Check README.md for detailed usage instructions
-echo   - Review the security features and configuration options
-echo   - Use test_windows.bat for quick testing options
+echo For more information:
+echo   - Check README.md for usage instructions
+echo   - Review security features and configuration
+echo   - Use test_windows.bat for testing options
 echo.
-
+echo ========================================
+echo.
 pause

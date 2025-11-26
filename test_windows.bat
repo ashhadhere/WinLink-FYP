@@ -1,22 +1,17 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM ====================================================================
-REM WinLink-FYP - Windows Testing & Launch Script
-REM Enhanced Desktop Distributed Computing Platform
-REM ====================================================================
-
-title WinLink-FYP Testing Suite
+title WinLink Testing Suite
 
 cls
 echo.
-echo  ========================================
-echo         W I N L I N K - F Y P
-echo         Distributed Computing
-echo  ========================================
+echo ========================================
+echo     W I N L I N K - F Y P
+echo     Distributed Computing Platform
+echo ========================================
 echo.
-echo  Distributed Computing Platform - Windows Testing
-echo  ======================================================== 
+echo Windows Testing and Launch Menu
+echo ========================================
 echo.
 
 REM Check Python installation
