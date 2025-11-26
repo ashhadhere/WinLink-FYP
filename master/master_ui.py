@@ -207,6 +207,19 @@ class MasterUI(QtWidgets.QWidget):
         combo_model = QtGui.QStandardItemModel()
         self.discovered_combo.setModel(combo_model)
         
+        # Set QListView for proper checkbox display
+        list_view = QtWidgets.QListView()
+        list_view.setStyleSheet("""
+            QListView::item {
+                padding: 8px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            QListView::item:hover {
+                background: rgba(0, 245, 160, 0.15);
+            }
+        """)
+        self.discovered_combo.setView(list_view)
+        
         # Connect to model's dataChanged signal to update display text and button states
         combo_model.dataChanged.connect(self._on_combo_selection_changed)
         
@@ -756,12 +769,13 @@ class MasterUI(QtWidgets.QWidget):
         # Update combo box text to show selection count
         self._update_combo_text()
         
-        # Enable/disable buttons
-        self.connect_discovered_btn.setEnabled(selected_count > 0 or has_unconnected)
+        # Enable/disable buttons based on actual checked state
+        self._update_connect_button_states()
         self.connect_all_btn.setEnabled(has_unconnected)
     
     def _on_combo_selection_changed(self):
         """Handle when checkbox states change in the combo box"""
+        print("[MASTER] _on_combo_selection_changed called")
         # Update display text
         self._update_combo_text()
         # Update button states based on current selections
@@ -775,8 +789,11 @@ class MasterUI(QtWidgets.QWidget):
             if item and item.checkState() == QtCore.Qt.Checked and item.isEnabled():
                 checked_count += 1
         
+        print(f"[MASTER] _update_connect_button_states: {checked_count} items checked")
+        
         # Enable "Connect Selected" button if at least one worker is checked
         self.connect_discovered_btn.setEnabled(checked_count > 0)
+        print(f"[MASTER] Connect button enabled: {checked_count > 0}")
     
     def _update_combo_text(self):
         """Update combo box display text based on selections"""
@@ -801,18 +818,32 @@ class MasterUI(QtWidgets.QWidget):
     
     def connect_from_list(self):
         """Connect to selected workers from discovered dropdown"""
+        print("[MASTER] connect_from_list called")
+        
         # Get all checked items from combo box
         selected_workers = []
+        model = self.discovered_combo.model()
+        
+        print(f"[MASTER] Combo box has {self.discovered_combo.count()} items")
+        
         for i in range(self.discovered_combo.count()):
-            item = self.discovered_combo.model().item(i)
-            if item and item.checkState() == QtCore.Qt.Checked:
-                worker_info_json = item.data(Qt.UserRole)
-                if worker_info_json:
-                    try:
-                        worker_info = json.loads(worker_info_json)
-                        selected_workers.append(worker_info)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+            item = model.item(i)
+            if item:
+                is_checked = item.checkState() == QtCore.Qt.Checked
+                is_enabled = item.isEnabled()
+                print(f"[MASTER] Item {i}: checked={is_checked}, enabled={is_enabled}, text={item.text()}")
+                
+                if is_checked:
+                    worker_info_json = item.data(Qt.UserRole)
+                    if worker_info_json:
+                        try:
+                            worker_info = json.loads(worker_info_json)
+                            selected_workers.append(worker_info)
+                            print(f"[MASTER] Added worker: {worker_info.get('hostname', 'Unknown')}")
+                        except (json.JSONDecodeError, TypeError) as e:
+                            print(f"[MASTER] Error parsing worker info: {e}")
+        
+        print(f"[MASTER] Total selected workers: {len(selected_workers)}")
         
         if not selected_workers:
             QtWidgets.QMessageBox.warning(self, "No Selection", "Please check at least one worker from the dropdown")

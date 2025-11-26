@@ -682,6 +682,8 @@ class WorkerUI(QWidget):
         task_id = data.get("task_id")
         code = data.get("code", "")
         payload = data.get("data", {})
+        
+        print(f"[WORKER] handle_task_request called with task_id: {task_id}")
 
         if not task_id or not code:
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
@@ -690,6 +692,7 @@ class WorkerUI(QWidget):
         # Log task received with timestamp
         task_name = data.get("name", "Unnamed Task")
         receive_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[WORKER] Logging task received: {task_name}")
         self.log(f"📥 Task received: '{task_name}' [ID: {task_id[:8]}...] at {receive_time}")
         
         # Immediately show the task in the UI - ensure it's visible right away
