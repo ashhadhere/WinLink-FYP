@@ -859,11 +859,13 @@ class WorkerUI(QWidget):
         self.task_log.setPlainText("=== TASK EXECUTION LOG ===\n\nWaiting for logs...")
 
     def log(self, msg):
+        """Add a log message to the task execution log"""
         now = time.strftime("%H:%M:%S")
         formatted_msg = f"[{now}] {msg}"
         
         # Debug: print to console to verify log is called
-        print(f"[LOG] {formatted_msg}")
+        print(f"[LOG {now}] {msg}")
+        print(f"[LOG DEBUG] task_log_initialized = {self.task_log_initialized}")
 
         def append():
             try:
@@ -875,28 +877,42 @@ class WorkerUI(QWidget):
                     lines = []
                 else:
                     current_text = self.task_log.toPlainText()
+                    # Keep last 99 lines to prevent log from growing too large
                     lines = current_text.splitlines()[-99:]
                 
                 lines.append(formatted_msg)
                 new_text = "\n".join(lines)
                 
-                # Set the text
+                print(f"[LOG DEBUG] Setting text with {len(new_text)} chars, {len(lines)} lines")
+                
+                # Update the text widget
                 self.task_log.setPlainText(new_text)
+                
+                # Move cursor to end to show latest log
                 self.task_log.moveCursor(QTextCursor.End)
+                self.task_log.ensureCursorVisible()
+                
+                print(f"[LOG DEBUG] Text set successfully")
                 
                 # Verify it was set
                 verification = self.task_log.toPlainText()
-                print(f"[LOG DEBUG] Set {len(lines)} lines ({len(new_text)} chars). Verified: {len(verification)} chars in widget")
+                print(f"[LOG DEBUG] Current log has {len(verification)} chars, {len(verification.splitlines())} lines")
                 
-                # Force repaint
+                # Force immediate UI update
                 self.task_log.viewport().update()
+                self.task_log.repaint()
+                QApplication.processEvents()
                 
             except Exception as e:
-                print(f"[LOG ERROR] Exception in append: {e}")
+                print(f"[LOG ERROR] Exception in log append: {e}")
                 import traceback
                 traceback.print_exc()
 
-        QTimer.singleShot(0, append)
+        # Ensure we're on the main Qt thread
+        if threading.current_thread() == threading.main_thread():
+            append()
+        else:
+            QTimer.singleShot(0, append)
 
     def export_log(self):
         fn, _ = QFileDialog.getSaveFileName(self, "Save Log", f"worker_log_{int(time.time())}.txt",
