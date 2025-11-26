@@ -14,12 +14,10 @@ class WelcomeScreen(QWidget):
         self.setObjectName("welcomeScreen")
         self.setWindowTitle("WinLink - Distributed Computing Platform")
         
-        # Remove default window frame and set up custom title bar
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        # Keep window frame but make it custom-styled
+        # Using Qt.Window flag allows proper maximize behavior
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
-        
-        # Start maximized (not full screen)
-        self.showMaximized()
         
         self.setStyleSheet(STYLE_SHEET)
         
@@ -39,8 +37,8 @@ class WelcomeScreen(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Custom Title Bar
-        self._create_title_bar()
+        # Custom Title Bar - hidden since we use system frame now
+        # self._create_title_bar()
         
         # Content area with original margins
         content_widget = QWidget()
@@ -49,7 +47,7 @@ class WelcomeScreen(QWidget):
         content_layout.setContentsMargins(60, 40, 60, 60)
         content_layout.setSpacing(0)
         
-        main_layout.addWidget(self.title_bar)
+        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
         # Header Section
@@ -349,7 +347,7 @@ class WelcomeScreen(QWidget):
 
     def open_role_screen(self):
         self.role_screen = RoleSelectScreen()
-        self.role_screen.show()
+        self.role_screen.showMaximized()
         self.close()
 
 

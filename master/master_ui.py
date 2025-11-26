@@ -1,7 +1,8 @@
 import sys, os, json, threading, time
+from typing import Optional
 from PyQt5 import QtWidgets, QtGui, QtCore
-from PyQt5.QtWidgets import QHeaderView, QSplitter, QPushButton
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QHeaderView, QSplitter, QPushButton, QComboBox, QListWidget
+from PyQt5.QtCore import Qt, QTimer
 
 # Fix module path for core & assets
 sys.path.append(os.path.abspath(os.path.join(__file__, "..", "..")))
@@ -17,12 +18,9 @@ class MasterUI(QtWidgets.QWidget):
         self.setObjectName("mainWindow")
         self.setWindowTitle("WinLink – Master PC")
         
-        # Remove default window frame and set up custom title bar
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        # Use frameless window with custom title bar
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
-        
-        # Start maximized (not full screen)
-        self.showMaximized()
         
         self.setStyleSheet(STYLE_SHEET)
         
@@ -45,14 +43,19 @@ class MasterUI(QtWidgets.QWidget):
         # UI
         self.setup_ui()
         self.start_monitoring_thread()
+        
+        # Start discovery refresh timer
+        self.discovery_timer = QTimer()
+        self.discovery_timer.timeout.connect(self.refresh_discovered_workers)
+        self.discovery_timer.start(2000)  # Refresh every 2 seconds
 
     def setup_ui(self):
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Custom Title Bar
-        self._create_title_bar()
+        # Custom Title Bar - hidden since we use system frame now
+        # self._create_title_bar()
 
         # Content area
         content_widget = QtWidgets.QWidget()
@@ -74,7 +77,7 @@ class MasterUI(QtWidgets.QWidget):
         splitter.setSizes([400, 800])  # Initial sizes
         content_layout.addWidget(splitter)
 
-        main_layout.addWidget(self.title_bar)
+        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
     def _create_title_bar(self):
@@ -181,17 +184,202 @@ class MasterUI(QtWidgets.QWidget):
         lay.addWidget(hdr)
 
         # Add Worker
-        grp = QtWidgets.QGroupBox("Add Worker", panel)
+        grp = QtWidgets.QGroupBox("⚡ Add Worker", panel)
         g_l = QtWidgets.QVBoxLayout(grp)
-        g_l.setSpacing(6)
-        g_l.setContentsMargins(8, 15, 8, 8)
-        self.ip_input = QtWidgets.QLineEdit(); self.ip_input.setPlaceholderText("IP")
-        self.port_input = QtWidgets.QLineEdit(); self.port_input.setPlaceholderText("Port")
-        self.port_input.setValidator(QtGui.QIntValidator(1,65535))
-        self.connect_btn = QtWidgets.QPushButton("Connect"); self.connect_btn.setObjectName("startBtn")
+        g_l.setSpacing(8)
+        g_l.setContentsMargins(10, 18, 10, 10)
+        
+        # Discovered Workers Section
+        disco_label = QtWidgets.QLabel("🔍 Select Workers:")
+        disco_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #00f5a0; margin-bottom: 3px;")
+        g_l.addWidget(disco_label)
+        
+        # Help text
+        help_text = QtWidgets.QLabel("Click dropdown to select multiple workers • Auto-refreshes every 2s")
+        help_text.setStyleSheet("font-size: 8pt; color: rgba(255, 255, 255, 0.5); margin-bottom: 5px;")
+        g_l.addWidget(help_text)
+        
+        # Multi-select dropdown using QComboBox with checkable items
+        self.discovered_combo = QComboBox()
+        self.discovered_combo.setMinimumHeight(36)
+        self.discovered_combo.setStyleSheet("""
+            QComboBox {
+                background: rgba(15, 20, 30, 0.95);
+                color: #e6e6fa;
+                border: 2px solid rgba(0, 245, 160, 0.25);
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 9pt;
+            }
+            QComboBox:hover {
+                border: 2px solid rgba(0, 245, 160, 0.4);
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #00f5a0;
+                margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background: rgba(20, 25, 35, 0.98);
+                color: #e6e6fa;
+                selection-background-color: rgba(0, 245, 160, 0.25);
+                border: 2px solid rgba(0, 245, 160, 0.4);
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px 10px;
+                border-radius: 4px;
+                margin: 1px 2px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background: rgba(0, 245, 160, 0.15);
+            }
+        """)
+        
+        # Make the combo box view checkable
+        self.discovered_combo.setView(QtWidgets.QListView())
+        self.discovered_combo.view().setMinimumHeight(120)
+        
+        g_l.addWidget(self.discovered_combo)
+        
+        # Connect buttons
+        connect_btns_layout = QtWidgets.QHBoxLayout()
+        connect_btns_layout.setSpacing(6)
+        
+        self.connect_discovered_btn = QtWidgets.QPushButton("Connect Selected")
+        self.connect_discovered_btn.setObjectName("startBtn")
+        self.connect_discovered_btn.setMinimumHeight(36)
+        self.connect_discovered_btn.setEnabled(False)
+        self.connect_discovered_btn.clicked.connect(self.connect_from_list)
+        self.connect_discovered_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(0, 245, 160, 0.7);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(0, 245, 160, 0.85);
+            }
+            QPushButton:pressed {
+                background: rgba(0, 245, 160, 0.6);
+            }
+            QPushButton:disabled {
+                background: rgba(100, 100, 100, 0.3);
+                color: rgba(255, 255, 255, 0.3);
+            }
+        """)
+        
+        self.connect_all_btn = QtWidgets.QPushButton("Connect All")
+        self.connect_all_btn.setMinimumHeight(36)
+        self.connect_all_btn.setEnabled(False)
+        self.connect_all_btn.clicked.connect(self.connect_all_discovered)
+        self.connect_all_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(102, 126, 234, 0.7);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(102, 126, 234, 0.85);
+            }
+            QPushButton:pressed {
+                background: rgba(102, 126, 234, 0.6);
+            }
+            QPushButton:disabled {
+                background: rgba(100, 100, 100, 0.3);
+                color: rgba(255, 255, 255, 0.3);
+            }
+        """)
+        
+        connect_btns_layout.addWidget(self.connect_discovered_btn, 1)
+        connect_btns_layout.addWidget(self.connect_all_btn, 1)
+        g_l.addLayout(connect_btns_layout)
+        
+        # Separator
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setStyleSheet("background: rgba(255, 255, 255, 0.15); margin: 12px 0px 10px 0px; max-height: 1px;")
+        g_l.addWidget(sep)
+        
+        # Manual Entry Section
+        manual_label = QtWidgets.QLabel("✏️ Manual Entry:")
+        manual_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #667eea; margin-bottom: 5px;")
+        g_l.addWidget(manual_label)
+        
+        # IP and Port inputs
+        manual_input_layout = QtWidgets.QHBoxLayout()
+        manual_input_layout.setSpacing(6)
+        
+        self.ip_input = QtWidgets.QLineEdit()
+        self.ip_input.setPlaceholderText("IP Address")
+        self.ip_input.setMinimumHeight(34)
+        self.ip_input.setStyleSheet("""
+            QLineEdit {
+                background: rgba(25, 30, 40, 0.9);
+                color: #e6e6fa;
+                border: 2px solid rgba(102, 126, 234, 0.25);
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 9pt;
+            }
+            QLineEdit:focus {
+                border: 2px solid rgba(102, 126, 234, 0.5);
+                background: rgba(25, 30, 40, 1);
+            }
+            QLineEdit:hover {
+                border: 2px solid rgba(102, 126, 234, 0.35);
+            }
+        """)
+        
+        self.port_input = QtWidgets.QLineEdit()
+        self.port_input.setPlaceholderText("Port")
+        self.port_input.setValidator(QtGui.QIntValidator(1, 65535))
+        self.port_input.setMinimumHeight(34)
+        self.port_input.setFixedWidth(90)
+        self.port_input.setStyleSheet(self.ip_input.styleSheet())
+        
+        manual_input_layout.addWidget(self.ip_input, 2)
+        manual_input_layout.addWidget(self.port_input, 0)
+        g_l.addLayout(manual_input_layout)
+        
+        self.connect_btn = QtWidgets.QPushButton("🔌 Connect")
+        self.connect_btn.setObjectName("startBtn")
+        self.connect_btn.setMinimumHeight(36)
         self.connect_btn.clicked.connect(self.connect_to_worker)
-        for w in (self.ip_input, self.port_input, self.connect_btn):
-            g_l.addWidget(w)
+        self.connect_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(102, 126, 234, 0.7);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(102, 126, 234, 0.85);
+            }
+            QPushButton:pressed {
+                background: rgba(102, 126, 234, 0.6);
+            }
+        """)
+        
+        g_l.addWidget(self.connect_btn)
         lay.addWidget(grp)
 
         # Connected Workers
@@ -387,14 +575,206 @@ class MasterUI(QtWidgets.QWidget):
 
     def on_worker_selection_changed(self):
         self.disconnect_btn.setEnabled(bool(self.workers_list.selectedItems()))
+    
+    def refresh_discovered_workers(self):
+        """Update the dropdown with newly discovered workers"""
+        discovered = self.network.get_discovered_workers()
+        
+        # Store currently checked items
+        checked_workers = []
+        for i in range(self.discovered_combo.count()):
+            item = self.discovered_combo.model().item(i)
+            if item and item.checkState() == QtCore.Qt.Checked:
+                checked_workers.append(item.data(Qt.UserRole))
+        
+        # Clear and repopulate
+        self.discovered_combo.clear()
+        
+        if not discovered:
+            self.discovered_combo.addItem("🔍 Searching for workers...")
+            self.discovered_combo.setEnabled(False)
+            self.connect_discovered_btn.setEnabled(False)
+            self.connect_all_btn.setEnabled(False)
+            return
+        
+        self.discovered_combo.setEnabled(True)
+        selected_count = 0
+        has_unconnected = False
+        
+        # Add discovered workers as checkable items
+        for worker_id, info in discovered.items():
+            hostname = info.get('hostname', 'Unknown')
+            ip = info.get('ip', '')
+            port = info.get('port', '')
+            
+            # Check if already connected
+            connected = worker_id in self.network.get_connected_workers()
+            
+            if connected:
+                display_text = f"✅ {hostname} ({ip}:{port})"
+            else:
+                display_text = f"🖥️ {hostname} ({ip}:{port})"
+                has_unconnected = True
+            
+            self.discovered_combo.addItem(display_text)
+            
+            # Make item checkable
+            item = self.discovered_combo.model().item(self.discovered_combo.count() - 1)
+            if item:
+                item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
+                item.setData(Qt.UserRole, info)
+                
+                # Restore check state if it was previously checked
+                if info in checked_workers:
+                    item.setCheckState(QtCore.Qt.Checked)
+                    selected_count += 1
+                else:
+                    item.setCheckState(QtCore.Qt.Unchecked)
+                
+                # Disable if already connected
+                if connected:
+                    item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEnabled)
+        
+        # Update combo box text to show selection count
+        self._update_combo_text()
+        
+        # Enable/disable buttons
+        self.connect_discovered_btn.setEnabled(selected_count > 0 or has_unconnected)
+        self.connect_all_btn.setEnabled(has_unconnected)
+    
+    def _update_combo_text(self):
+        """Update combo box display text based on selections"""
+        checked_count = 0
+        for i in range(self.discovered_combo.count()):
+            item = self.discovered_combo.model().item(i)
+            if item and item.checkState() == QtCore.Qt.Checked:
+                checked_count += 1
+        
+        if checked_count == 0:
+            self.discovered_combo.setCurrentIndex(0)
+        elif checked_count == 1:
+            # Find the checked item and show its text
+            for i in range(self.discovered_combo.count()):
+                item = self.discovered_combo.model().item(i)
+                if item and item.checkState() == QtCore.Qt.Checked:
+                    self.discovered_combo.setCurrentIndex(i)
+                    break
+        else:
+            # Show count of selected workers
+            self.discovered_combo.setCurrentText(f"✅ {checked_count} workers selected")
+    
+    def connect_from_list(self):
+        """Connect to selected workers from discovered dropdown"""
+        # Get all checked items from combo box
+        selected_workers = []
+        for i in range(self.discovered_combo.count()):
+            item = self.discovered_combo.model().item(i)
+            if item and item.checkState() == QtCore.Qt.Checked:
+                worker_info = item.data(Qt.UserRole)
+                if worker_info:
+                    selected_workers.append(worker_info)
+        
+        if not selected_workers:
+            QtWidgets.QMessageBox.warning(self, "No Selection", "Please check at least one worker from the dropdown")
+            return
+        
+        success_count = 0
+        fail_count = 0
+        already_connected = 0
+        
+        for worker_info in selected_workers:
+            ip = worker_info.get('ip')
+            port = worker_info.get('port')
+            hostname = worker_info.get('hostname', 'Unknown')
+            worker_id = f"{ip}:{port}"
+            
+            # Check if already connected
+            if worker_id in self.network.get_connected_workers():
+                already_connected += 1
+                continue
+            
+            connected = self.network.connect_to_worker(worker_id, ip, int(port))
+            if connected:
+                success_count += 1
+                # Request resources
+                QtCore.QTimer.singleShot(300, lambda wid=worker_id: self.network.request_resources_from_worker(wid))
+            else:
+                fail_count += 1
+        
+        # Show summary
+        msg_parts = []
+        if success_count > 0:
+            msg_parts.append(f"✅ Connected: {success_count}")
+        if already_connected > 0:
+            msg_parts.append(f"ℹ️ Already connected: {already_connected}")
+        if fail_count > 0:
+            msg_parts.append(f"❌ Failed: {fail_count}")
+        
+        if msg_parts:
+            QtWidgets.QMessageBox.information(self, "Connection Results", "\n".join(msg_parts))
+        
+        self.refresh_workers_async()
+        self.refresh_discovered_workers()
+    
+    def connect_all_discovered(self):
+        """Connect to all discovered workers"""
+        discovered = self.network.get_discovered_workers()
+        
+        if not discovered:
+            QtWidgets.QMessageBox.warning(self, "No Workers", "No workers discovered yet")
+            return
+        
+        success_count = 0
+        fail_count = 0
+        already_connected = 0
+        
+        for worker_id, info in discovered.items():
+            # Check if already connected
+            if worker_id in self.network.get_connected_workers():
+                already_connected += 1
+                continue
+            
+            ip = info.get('ip')
+            port = info.get('port')
+            
+            connected = self.network.connect_to_worker(worker_id, ip, int(port))
+            if connected:
+                success_count += 1
+                # Request resources
+                QtCore.QTimer.singleShot(300, lambda wid=worker_id: self.network.request_resources_from_worker(wid))
+            else:
+                fail_count += 1
+        
+        # Show summary
+        msg_parts = []
+        if success_count > 0:
+            msg_parts.append(f"✅ Connected: {success_count}")
+        if already_connected > 0:
+            msg_parts.append(f"ℹ️ Already connected: {already_connected}")
+        if fail_count > 0:
+            msg_parts.append(f"❌ Failed: {fail_count}")
+        
+        if msg_parts:
+            QtWidgets.QMessageBox.information(self, "Bulk Connection Results", "\n".join(msg_parts))
+        
+        self.refresh_workers_async()
+        self.refresh_discovered_workers()
 
     def connect_to_worker(self):
+        """Connect to worker using manual IP and port entry"""
         ip = self.ip_input.text().strip()
         port = self.port_input.text().strip()
         if not ip or not port:
             QtWidgets.QMessageBox.warning(self, "Missing Info", "Enter both IP and Port")
             return
         worker_id = f"{ip}:{port}"
+        
+        # Check if already connected
+        if worker_id in self.network.get_connected_workers():
+            QtWidgets.QMessageBox.information(self, "Already Connected", 
+                f"Already connected to {worker_id}")
+            return
+        
         connected = self.network.connect_to_worker(worker_id, ip, int(port))
         if not connected:
             QtWidgets.QMessageBox.critical(self, "Connection Failed", f"Could not connect to {worker_id}")
@@ -488,23 +868,33 @@ class MasterUI(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Invalid Task Type", "Selected task type is not valid.")
             return
 
-        if not self.network.get_connected_workers():
+        connected_workers = self.network.get_connected_workers()
+        if not connected_workers:
             QtWidgets.QMessageBox.warning(self, "No Workers", "Connect at least one worker before submitting tasks.")
             return
 
         task_id = self.task_manager.create_task(selected_type, code, data)
-        if not self.dispatch_task_to_worker(task_id, code, data):
+        print(f"[MASTER] 📤 Task submitted: {task_id[:8]}... Type: {selected_type.name}")
+        print(f"[MASTER] 🔄 Available workers: {len(connected_workers)}")
+        
+        assigned_worker = self.dispatch_task_to_worker(task_id, code, data)
+        if not assigned_worker:
             QtWidgets.QMessageBox.critical(self, "Dispatch Failed", "Failed to dispatch task to any worker.")
+            print(f"[MASTER] ❌ Task {task_id[:8]}... dispatch failed - no available workers")
+        else:
+            worker_short = assigned_worker[:20] + "..." if len(assigned_worker) > 20 else assigned_worker
+            print(f"[MASTER] ✅ Task {task_id[:8]}... dispatched to worker {worker_short}")
         self.refresh_task_table_async()
 
-    def dispatch_task_to_worker(self, task_id: str, code: str, data: dict) -> bool:
+    def dispatch_task_to_worker(self, task_id: str, code: str, data: dict) -> Optional[str]:
+        """Dispatch task to best available worker. Returns worker_id if successful, None otherwise."""
         workers = self.network.get_connected_workers()
         if not workers:
-            return False
+            return None
 
         target_worker = self._select_worker(workers)
         if not target_worker:
-            return False
+            return None
 
         payload = {
             'task_id': task_id,
@@ -514,20 +904,60 @@ class MasterUI(QtWidgets.QWidget):
         sent = self.network.send_task_to_worker(target_worker, payload)
         if sent:
             self.task_manager.assign_task_to_worker(task_id, target_worker)
-        return sent
+            return target_worker
+        return None
 
     def _select_worker(self, workers: dict) -> str:
+        """Intelligently select the best worker based on available resources and load"""
         resources = self._get_worker_resources_snapshot()
+        
+        if not resources:
+            # No resource data available, use round-robin
+            return list(workers.keys())[0] if workers else None
+        
         best_worker = None
         best_score = -1
+        
+        print(f"[MASTER] 🎯 Load Balancing - Evaluating {len(workers)} workers")
+        
         for worker_id in workers.keys():
             stats = resources.get(worker_id, {})
-            score = stats.get('memory_available_mb', 0) or 0
-            if score > best_score:
-                best_score = score
+            
+            # Get resource metrics (higher is better)
+            cpu_available = 100 - stats.get('cpu_percent', 100)  # Available CPU %
+            mem_available = stats.get('memory_available_mb', 0) or 0  # Available memory MB
+            disk_free = stats.get('disk_free_gb', 0) or 0  # Free disk GB
+            
+            # Get active tasks count (lower is better)
+            active_tasks = 0
+            for task_id, task in self.task_manager.tasks.items():
+                if task.worker_id == worker_id and task.status.value in ['pending', 'running']:
+                    active_tasks += 1
+            
+            # Calculate composite score
+            # Weights: CPU (30%), Memory (40%), Active Tasks (20%), Disk (10%)
+            cpu_score = cpu_available * 0.3
+            mem_score = min(mem_available / 1024, 100) * 0.4  # Normalize to 0-100 scale
+            task_score = max(0, 100 - (active_tasks * 20)) * 0.2  # Penalty for each task
+            disk_score = min(disk_free * 10, 100) * 0.1  # Normalize to 0-100 scale
+            
+            total_score = cpu_score + mem_score + task_score + disk_score
+            
+            print(f"[MASTER]   Worker {worker_id[:15]}... Score: {total_score:.1f} "
+                  f"(CPU: {cpu_available:.0f}%, Mem: {mem_available:.0f}MB, "
+                  f"Tasks: {active_tasks}, Disk: {disk_free:.1f}GB)")
+            
+            if total_score > best_score:
+                best_score = total_score
                 best_worker = worker_id
-        if not best_worker and workers:
-            best_worker = next(iter(workers.keys()))
+        
+        if best_worker:
+            print(f"[MASTER] ✅ Selected worker: {best_worker[:15]}... (score: {best_score:.1f})")
+        else:
+            # Fallback to first worker if no resource data
+            best_worker = list(workers.keys())[0] if workers else None
+            print(f"[MASTER] ⚠️ Using fallback worker selection: {best_worker[:15] if best_worker else 'None'}...")
+        
         return best_worker
 
     def refresh_task_table(self):
@@ -655,12 +1085,22 @@ class MasterUI(QtWidgets.QWidget):
     def handle_progress_update(self, worker_id, data):
         task_id = data.get("task_id")
         progress = data.get("progress", 0)
+        # Log significant progress milestones
+        if progress in [0, 25, 50, 75, 100]:
+            print(f"[MASTER] ⏳ Task {task_id[:8] if task_id else 'unknown'}... progress: {progress}%")
         self.task_manager.update_task_progress(task_id, progress)
         self.refresh_task_table_async()
 
     def handle_task_result(self, worker_id, data):
         task_id = data.get("task_id")
         result_payload = data.get("result", {})
+        
+        # Log task completion
+        if result_payload.get("success"):
+            print(f"[MASTER] ✅ Task {task_id[:8] if task_id else 'unknown'}... completed successfully")
+        else:
+            error = result_payload.get("error", "Unknown error")
+            print(f"[MASTER] ❌ Task {task_id[:8] if task_id else 'unknown'}... failed: {error[:50]}")
         
         # Store full output including stdout/stderr
         task = self.task_manager.get_task(task_id)
@@ -819,6 +1259,9 @@ class MasterUI(QtWidgets.QWidget):
         """Handle window close event - cleanup resources"""
         try:
             self.monitoring_active = False
+            # Stop discovery timer
+            if hasattr(self, 'discovery_timer'):
+                self.discovery_timer.stop()
             # Give monitoring thread a moment to stop
             time.sleep(0.1)
             self.network.stop()
@@ -831,5 +1274,4 @@ class MasterUI(QtWidgets.QWidget):
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     win = MasterUI()
-    win.show()
     sys.exit(app.exec_())

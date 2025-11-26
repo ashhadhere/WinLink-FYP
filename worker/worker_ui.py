@@ -28,12 +28,10 @@ class WorkerUI(QWidget):
         self.setObjectName("mainWindow")
         self.setWindowTitle("WinLink – Worker PC")
         
-        # Remove default window frame and set up custom title bar
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        # Keep window frame but make it custom-styled
+        # Using Qt.Window flag allows proper maximize behavior
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
-        
-        # Start maximized (not full screen)
-        self.showMaximized()
         
         # Window stays maximized - no dragging variables needed
 
@@ -76,8 +74,8 @@ class WorkerUI(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Custom Title Bar
-        self._create_title_bar()
+        # Custom Title Bar - hidden since we use system frame now
+        # self._create_title_bar()
 
         # Content area
         content_widget = QWidget()
@@ -101,7 +99,7 @@ class WorkerUI(QWidget):
         splitter.setSizes([400, 600])
         content_layout.addWidget(splitter, 1)
 
-        main_layout.addWidget(self.title_bar)
+        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
     def _create_title_bar(self):
@@ -338,22 +336,24 @@ class WorkerUI(QWidget):
         self.start_btn = QPushButton("Start Worker")
         self.start_btn.setObjectName("startBtn")
         self.start_btn.clicked.connect(self.start_worker)
-        # Give the start button more padding and height for touch/small screens
-        self.start_btn.setFixedHeight(36)
-        self.start_btn.setStyleSheet("QPushButton#startBtn { padding: 10px 14px; }")
+        # Give the start button more padding and height for better visibility
+        self.start_btn.setMinimumHeight(40)  # Taller button
+        self.start_btn.setMinimumWidth(120)  # Reasonable minimum width
+        self.start_btn.setStyleSheet("QPushButton#startBtn { padding: 8px 16px; font-size: 10pt; font-weight: bold; }")
 
         self.stop_btn = QPushButton("Stop Worker")
         self.stop_btn.setObjectName("stopBtn")
         self.stop_btn.clicked.connect(self.stop_worker)
         self.stop_btn.setEnabled(False)
-        self.stop_btn.setFixedHeight(36)
-        self.stop_btn.setStyleSheet("QPushButton#stopBtn { padding: 10px 14px; }")
+        self.stop_btn.setMinimumHeight(40)  # Taller button
+        self.stop_btn.setMinimumWidth(120)  # Reasonable minimum width
+        self.stop_btn.setStyleSheet("QPushButton#stopBtn { padding: 8px 16px; font-size: 10pt; font-weight: bold; }")
 
         # Container to add top margin above the buttons and keep them stacked
         btn_container = QFrame()
         btn_layout = QVBoxLayout(btn_container)
-        btn_layout.setContentsMargins(0, 12, 0, 0)  # top margin
-        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(0, 15, 0, 0)  # More top margin
+        btn_layout.setSpacing(12)  # Better spacing between buttons
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
         layout.addWidget(btn_container)
@@ -451,38 +451,23 @@ class WorkerUI(QWidget):
         self.disk_bar   = self.disk_bar_layout.itemAt(1).widget()
         self.disk_label = self.disk_bar_layout.itemAt(2).widget()
 
-        # Separator line for better visual separation
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        separator.setStyleSheet("background: rgba(255, 255, 255, 0.1); margin: 8px 0px;")
-        rv.addWidget(separator)
-
-        # Resource details with better styling
-        details_label = QLabel("📊 Detailed System Information:")
-        details_label.setObjectName("infoLabel")
-        details_label.setStyleSheet("font-size: 10pt; font-weight: bold; color: #00f5a0; margin-top: 5px;")
-        rv.addWidget(details_label)
-
         self.res_details = QTextEdit()
         self.res_details.setReadOnly(True)
-        self.res_details.setMinimumHeight(120)  # Better height
-        self.res_details.setMaximumHeight(180)  # Better max height
-        # Enhanced font for resource details
+        self.res_details.setMinimumHeight(160)
+        self.res_details.setMaximumHeight(160)
         res_font = self.res_details.font()
         res_font.setPointSize(9)
         res_font.setFamily("Consolas")
         self.res_details.setFont(res_font)
-        # Better styling for resource details
         self.res_details.setStyleSheet("""
             QTextEdit {
-                background-color: rgba(20, 25, 35, 0.95);
+                background-color: rgba(20, 25, 35, 0.9);
                 color: #e8e8e8;
-                border: 2px solid rgba(0, 245, 160, 0.3);
+                border: 2px solid rgba(102, 126, 234, 0.3);
                 border-radius: 8px;
                 padding: 10px;
                 font-size: 9pt;
-                line-height: 1.5;
+                line-height: 1.4;
             }
         """)
         rv.addWidget(self.res_details)
@@ -525,13 +510,14 @@ class WorkerUI(QWidget):
 
         # Enhanced buttons section with better styling
         btns = QHBoxLayout()
-        btns.setContentsMargins(0, 10, 0, 0)  # More top margin
-        btns.setSpacing(12)  # Better spacing
+        btns.setContentsMargins(0, 10, 0, 0)
+        btns.setSpacing(12)
         
         # Clear button with icon
         c = QPushButton("🗑️ Clear Log")
         c.clicked.connect(self.task_log.clear)
-        c.setFixedHeight(32)
+        c.setMinimumHeight(42)
+        c.setMinimumWidth(110)
         c.setStyleSheet("""
             QPushButton {
                 background: rgba(255, 100, 100, 0.8);
@@ -539,7 +525,7 @@ class WorkerUI(QWidget):
                 border: none;
                 border-radius: 6px;
                 font-weight: bold;
-                font-size: 10pt;
+                font-size: 9pt;
                 padding: 6px 12px;
             }
             QPushButton:hover {
@@ -550,7 +536,8 @@ class WorkerUI(QWidget):
         # Export button with icon
         e = QPushButton("📤 Export Log")
         e.clicked.connect(self.export_log)
-        e.setFixedHeight(32)
+        e.setMinimumHeight(42)
+        e.setMinimumWidth(110)
         e.setStyleSheet("""
             QPushButton {
                 background: rgba(100, 150, 255, 0.8);
@@ -558,7 +545,7 @@ class WorkerUI(QWidget):
                 border: none;
                 border-radius: 6px;
                 font-weight: bold;
-                font-size: 10pt;
+                font-size: 9pt;
                 padding: 6px 12px;
             }
             QPushButton:hover {
@@ -579,45 +566,45 @@ class WorkerUI(QWidget):
 
     def _make_bar(self, text, color):
         h = QHBoxLayout()
-        h.setSpacing(10)
+        h.setSpacing(8)
         
-        # Label with better styling
+        # Label with smaller font for better fit
         lbl = QLabel(text)
-        lbl.setMinimumWidth(110)
+        lbl.setMinimumWidth(100)
         lbl.setObjectName("infoLabel")
         lbl_font = lbl.font()
-        lbl_font.setPointSize(10)
+        lbl_font.setPointSize(9)
         lbl_font.setBold(True)
         lbl.setFont(lbl_font)
-        lbl.setStyleSheet("color: #e6e6fa; font-size: 10pt;")
+        lbl.setStyleSheet("color: #e6e6fa; font-size: 9pt;")
 
-        # Progress bar with enhanced styling
+        # Progress bar with compact styling
         bar = QProgressBar()
         bar.setTextVisible(False)
-        bar.setMaximumHeight(20)
-        bar.setMinimumHeight(20)
+        bar.setMaximumHeight(18)
+        bar.setMinimumHeight(18)
         bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: rgba(255, 255, 255, 0.05);
                 border: 2px solid rgba(255, 255, 255, 0.1);
-                border-radius: 10px;
+                border-radius: 9px;
                 text-align: center;
             }}
             QProgressBar::chunk {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {color}, stop:1 {color}CC);
-                border-radius: 8px;
+                border-radius: 7px;
             }}
         """)
 
-        # Value label with consistent font
+        # Value label with smaller font
         val = QLabel("0%")
-        val.setMinimumWidth(110)
+        val.setMinimumWidth(100)
         val.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         val_font = val.font()
-        val_font.setPointSize(10)
+        val_font.setPointSize(9)
         val_font.setBold(True)
         val.setFont(val_font)
-        val.setStyleSheet("color: #ffffff; font-size: 10pt; padding-left: 5px;")
+        val.setStyleSheet("color: #ffffff; font-size: 9pt; padding-left: 5px;")
 
         h.addWidget(lbl)
         h.addWidget(bar, 1)  # Bar stretches
@@ -673,6 +660,9 @@ class WorkerUI(QWidget):
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
             return
         
+        # Log task received
+        self.log(f"📥 Task received: {task_id[:8]}...")
+        
         # Immediately show the task in the UI - ensure it's visible right away
         with self.tasks_lock:
             self.current_tasks[task_id] = {
@@ -688,17 +678,31 @@ class WorkerUI(QWidget):
 
         def run_task():
             self._set_task_state(task_id, status="running", progress=0, started_at=time.time())
+            self.log(f"▶️ Task started: {task_id[:8]}...")
             self.send_progress_update(task_id, 0)
 
+            def progress_with_log(pct):
+                # Log significant progress milestones
+                if pct in [25, 50, 75]:
+                    self.log(f"⏳ Task {task_id[:8]}... progress: {pct}%")
+                self.send_progress_update(task_id, pct)
+            
             result = self.task_executor.execute_task(
                 code,
                 payload,
-                progress_callback=lambda pct: self.send_progress_update(task_id, pct)
+                progress_callback=progress_with_log
             )
 
             status = "done" if result.get("success") else "failed"
             progress_final = 100 if result.get("success") else max(0, min(99, self._get_task_progress(task_id)))
             self.send_progress_update(task_id, progress_final)
+            
+            # Log task completion or failure
+            if result.get("success"):
+                self.log(f"✅ Task completed: {task_id[:8]}... (100%)")
+            else:
+                error_msg = result.get("error", "Unknown error")
+                self.log(f"❌ Task failed: {task_id[:8]}... - {error_msg[:50]}")
 
             # Build output text
             output_parts = []
@@ -881,26 +885,21 @@ class WorkerUI(QWidget):
             cpu_cores_info = "N/A"
         
         details = (
-            f"🖥️ SYSTEM RESOURCES (Real-time)\n"
-            f"{'='*35}\n"
-            f"CPU:\n"
-            f"  Cores: {psutil.cpu_count(logical=False)} Physical, {psutil.cpu_count()} Logical\n"
-            f"  Usage: {cpu:.1f}% (Per-core: {cpu_cores_info})\n"
-            f"  Configured Limit: {cpu_limit_val}%\n"
+            f"💻 CPU\n"
+            f"  Cores: {psutil.cpu_count(logical=False)} Physical | {psutil.cpu_count()} Logical\n"
+            f"  Usage: {cpu:.1f}% | Limit: {cpu_limit_val}%\n"
+            f"  Per-core: {cpu_cores_info}\n"
             f"\n"
-            f"Memory:\n"
-            f"  Total: {mem_total_gb:.2f} GB\n"
-            f"  Used: {mem_used_gb:.2f} GB ({mem:.1f}%)\n"
-            f"  Available: {mem_available_mb:.0f} MB\n"
+            f"🧠 Memory\n"
+            f"  Total: {mem_total_gb:.2f} GB | Used: {mem_used_gb:.2f} GB ({mem:.1f}%)\n"
+            f"  Available: {mem_available_mb:.0f} MB | Limit: {mem_limit_val} MB\n"
             f"  Tasks Memory: {task_memory_mb:.1f} MB\n"
-            f"  Configured Limit: {mem_limit_val} MB\n"
             f"\n"
-            f"Disk:\n"
-            f"  Usage: {disk:.1f}%\n"
-            f"  Free Space: {disk_free_gb:.1f} GB\n"
+            f"💾 Disk\n"
+            f"  Usage: {disk:.1f}% | Free: {disk_free_gb:.1f} GB\n"
             f"\n"
-            f"Battery: {battery_str}\n"
-            f"Active Tasks: {active_tasks}"
+            f"🔋 Battery: {battery_str}\n"
+            f"⚡ Active Tasks: {active_tasks}"
         )
         self.res_details.setPlainText(details)
 
@@ -1023,5 +1022,4 @@ class WorkerUI(QWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = WorkerUI()
-    win.show()
     sys.exit(app.exec_())

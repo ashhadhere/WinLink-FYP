@@ -207,7 +207,7 @@ class ModernSplashScreen(QSplashScreen):
         self.close()
         # Keep a reference so Python doesn't GC it
         self.main_window = WelcomeScreen()
-        self.main_window.show()
+        self.main_window.showMaximized()
 
 
 def create_system_tray(app):
@@ -339,15 +339,15 @@ Examples:
     if args.role == 'master':
         print("\n🎯 Starting Master Node...")
         window = MasterUI()
-        window.show()
+        window.showMaximized()
     elif args.role == 'worker':
         print("\n⚡ Starting Worker Node...")
         window = WorkerUI()
-        window.show()
+        window.showMaximized()
     else:
         if args.skip_splash:
             window = WelcomeScreen()
-            window.show()
+            window.showMaximized()
         else:
             splash = ModernSplashScreen(enable_security_checks=True)
             splash.start_loading()

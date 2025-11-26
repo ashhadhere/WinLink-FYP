@@ -20,7 +20,10 @@ class MessageType:
     HEARTBEAT_RESPONSE = "heartbeat_response"
     READY = "ready"
     ERROR = "error"
-    PROGRESS_UPDATE = "progress_update" 
+    PROGRESS_UPDATE = "progress_update"
+    
+    # Discovery
+    WORKER_DISCOVERY = "worker_discovery" 
 
 class NetworkMessage:
     def __init__(self, msg_type: str, data: Dict[str, Any] = None):
@@ -49,9 +52,12 @@ class MasterNetwork:
     def __init__(self):
         self.workers: Dict[str, socket.socket] = {}
         self.worker_info: Dict[str, Dict] = {}
+        self.discovered_workers: Dict[str, Dict] = {}  # Workers found via UDP broadcast
         self.message_handlers: Dict[str, Callable] = {}
         self.running = False
         self.lock = threading.Lock()
+        self.discovery_socket: Optional[socket.socket] = None
+        self.discovery_port = 5000  # Port for UDP discovery
     def broadcast_task(self, task_id: str, code: str, data: Dict[str, Any]):
         """Send the task to all connected workers"""
         task_data = {
@@ -201,10 +207,68 @@ class MasterNetwork:
     def start(self):
         """Start the network manager"""
         self.running = True
+        self._start_discovery_listener()
+    
+    def _start_discovery_listener(self):
+        """Start UDP listener for worker discovery broadcasts"""
+        def listen():
+            try:
+                self.discovery_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.discovery_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                self.discovery_socket.bind(('', self.discovery_port))
+                self.discovery_socket.settimeout(1.0)
+                
+                print(f"[MASTER] Discovery listener started on port {self.discovery_port}")
+                
+                while self.running:
+                    try:
+                        data, addr = self.discovery_socket.recvfrom(1024)
+                        message = json.loads(data.decode())
+                        
+                        if message.get('type') == MessageType.WORKER_DISCOVERY:
+                            worker_data = message.get('data', {})
+                            worker_id = f"{worker_data.get('ip')}:{worker_data.get('port')}"
+                            
+                            with self.lock:
+                                self.discovered_workers[worker_id] = {
+                                    'hostname': worker_data.get('hostname'),
+                                    'ip': worker_data.get('ip'),
+                                    'port': worker_data.get('port'),
+                                    'last_seen': time.time()
+                                }
+                            print(f"[MASTER] Discovered worker: {worker_id} ({worker_data.get('hostname')})")
+                    
+                    except socket.timeout:
+                        # Clean up stale workers (not seen in last 15 seconds)
+                        with self.lock:
+                            current_time = time.time()
+                            stale = [wid for wid, info in self.discovered_workers.items()
+                                   if current_time - info.get('last_seen', 0) > 15]
+                            for wid in stale:
+                                self.discovered_workers.pop(wid, None)
+                        continue
+                    except Exception as e:
+                        if self.running:
+                            print(f"[MASTER] Error in discovery listener: {e}")
+            
+            except Exception as e:
+                print(f"[MASTER] Failed to start discovery listener: {e}")
+        
+        threading.Thread(target=listen, daemon=True).start()
+    
+    def get_discovered_workers(self) -> Dict[str, Dict]:
+        """Get list of discovered workers"""
+        with self.lock:
+            return self.discovered_workers.copy()
     
     def stop(self):
         """Stop the network manager and disconnect all workers"""
         self.running = False
+        if self.discovery_socket:
+            try:
+                self.discovery_socket.close()
+            except:
+                pass
         worker_ids = list(self.workers.keys())
         for worker_id in worker_ids:
             self.disconnect_worker(worker_id)
@@ -213,10 +277,14 @@ class WorkerNetwork:
     def __init__(self):
         self.server_socket: Optional[socket.socket] = None
         self.client_socket: Optional[socket.socket] = None
+        self.broadcast_socket: Optional[socket.socket] = None
         self.message_handlers: Dict[str, Callable] = {}
         self.running = False
+        self.broadcasting = False
         self.ip = ""
         self.port = 0
+        self.hostname = socket.gethostname()
+        self.discovery_port = 5000
     
     def register_handler(self, message_type: str, handler: Callable):
         """Register a handler for a specific message type"""
@@ -238,10 +306,50 @@ class WorkerNetwork:
             # Start accepting connections
             threading.Thread(target=self._accept_connections, daemon=True).start()
             
+            # Start broadcasting presence
+            self._start_broadcast()
+            
             return True
         except Exception as e:
             print(f"Failed to start worker server: {e}")
             return False
+    
+    def _start_broadcast(self):
+        """Start broadcasting worker presence via UDP"""
+        def broadcast():
+            try:
+                self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                self.broadcasting = True
+                
+                discovery_message = {
+                    'type': MessageType.WORKER_DISCOVERY,
+                    'data': {
+                        'hostname': self.hostname,
+                        'ip': self.ip,
+                        'port': self.port
+                    }
+                }
+                
+                print(f"[WORKER] Starting broadcast: {self.hostname} at {self.ip}:{self.port}")
+                
+                while self.broadcasting and self.running:
+                    try:
+                        message_json = json.dumps(discovery_message)
+                        self.broadcast_socket.sendto(
+                            message_json.encode(),
+                            ('<broadcast>', self.discovery_port)
+                        )
+                        time.sleep(3)  # Broadcast every 3 seconds
+                    except Exception as e:
+                        if self.broadcasting:
+                            print(f"[WORKER] Broadcast error: {e}")
+                        break
+            
+            except Exception as e:
+                print(f"[WORKER] Failed to start broadcast: {e}")
+        
+        threading.Thread(target=broadcast, daemon=True).start()
     
     def _accept_connections(self):
         """Accept connections from master"""
@@ -339,6 +447,12 @@ class WorkerNetwork:
     def stop(self):
         """Stop the worker network"""
         self.running = False
+        self.broadcasting = False
+        if self.broadcast_socket:
+            try:
+                self.broadcast_socket.close()
+            except:
+                pass
         if self.client_socket:
             try:
                 self.client_socket.close()

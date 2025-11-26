@@ -172,12 +172,10 @@ class RoleSelectScreen(QWidget):
         self.setObjectName("roleSelectScreen")
         self.setWindowTitle("WinLink – Select Your Role")
         
-        # Remove default window frame and set up custom title bar
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        # Keep window frame but make it custom-styled
+        # Using Qt.Window flag allows proper maximize behavior
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
-        
-        # Start maximized (not full screen)
-        self.showMaximized()
         
         self.setStyleSheet(STYLE_SHEET)
         
@@ -192,8 +190,8 @@ class RoleSelectScreen(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Custom Title Bar
-        self._create_title_bar()
+        # Custom Title Bar - hidden since we use system frame now
+        # self._create_title_bar()
         
         # Content area with original margins
         content_widget = QWidget()
@@ -202,7 +200,7 @@ class RoleSelectScreen(QWidget):
         content_layout.setContentsMargins(60, 60, 60, 80)
         content_layout.setSpacing(50)
         
-        main_layout.addWidget(self.title_bar)
+        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
         # Simple header
@@ -411,23 +409,22 @@ class RoleSelectScreen(QWidget):
 
     def open_master_ui(self):
         self.master_ui = MasterUI()
-        self.master_ui.show()
+        self.master_ui.showMaximized()
         self.close()
 
     def open_worker_ui(self):
         self.worker_ui = WorkerUI()
-        self.worker_ui.show()
+        self.worker_ui.showMaximized()
         self.close()
 
     def go_back(self):
         from main import WelcomeScreen
         self.welcome = WelcomeScreen()
-        self.welcome.show()
+        self.welcome.showMaximized()
         self.close()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = RoleSelectScreen()
-    win.show()
     sys.exit(app.exec_())
