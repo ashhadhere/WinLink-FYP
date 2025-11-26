@@ -830,6 +830,9 @@ class WorkerUI(QWidget):
 
     def log(self, msg):
         now = time.strftime("%H:%M:%S")
+        
+        # Debug: print to console to verify log is called
+        print(f"[LOG {now}] {msg}")
 
         def append():
             lines = self.task_log.toPlainText().splitlines()[-99:]

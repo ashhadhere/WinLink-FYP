@@ -207,8 +207,8 @@ class MasterUI(QtWidgets.QWidget):
         combo_model = QtGui.QStandardItemModel()
         self.discovered_combo.setModel(combo_model)
         
-        # Connect to model's dataChanged signal to update display text
-        combo_model.dataChanged.connect(self._update_combo_text)
+        # Connect to model's dataChanged signal to update display text and button states
+        combo_model.dataChanged.connect(self._on_combo_selection_changed)
         
         self.discovered_combo.setStyleSheet("""
             QComboBox {
@@ -760,6 +760,24 @@ class MasterUI(QtWidgets.QWidget):
         self.connect_discovered_btn.setEnabled(selected_count > 0 or has_unconnected)
         self.connect_all_btn.setEnabled(has_unconnected)
     
+    def _on_combo_selection_changed(self):
+        """Handle when checkbox states change in the combo box"""
+        # Update display text
+        self._update_combo_text()
+        # Update button states based on current selections
+        self._update_connect_button_states()
+    
+    def _update_connect_button_states(self):
+        """Update the enabled state of connect buttons based on checked items"""
+        checked_count = 0
+        for i in range(self.discovered_combo.count()):
+            item = self.discovered_combo.model().item(i)
+            if item and item.checkState() == QtCore.Qt.Checked and item.isEnabled():
+                checked_count += 1
+        
+        # Enable "Connect Selected" button if at least one worker is checked
+        self.connect_discovered_btn.setEnabled(checked_count > 0)
+    
     def _update_combo_text(self):
         """Update combo box display text based on selections"""
         checked_count = 0
@@ -1020,10 +1038,15 @@ class MasterUI(QtWidgets.QWidget):
         if not target_worker:
             return None
 
+        # Get task info to include name
+        task = self.task_manager.get_task(task_id)
+        task_name = task.type.name if task else "Unknown Task"
+        
         payload = {
             'task_id': task_id,
             'code': code,
-            'data': data
+            'data': data,
+            'name': task_name  # Include task type name for better logging
         }
         sent = self.network.send_task_to_worker(target_worker, payload)
         if sent:
