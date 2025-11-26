@@ -74,10 +74,14 @@ class MasterNetwork:
     
     def connect_to_worker(self, worker_id: str, ip: str, port: int, retries: int = 3) -> bool:
         """Connect to a worker PC with retry logic"""
+        print(f"\n[MASTER] ========== CONNECTION ATTEMPT ==========")
+        print(f"[MASTER] Target: {worker_id}")
+        print(f"[MASTER] Will attempt {retries} times with 3-second delays")
+        
         for attempt in range(retries):
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(5.0)  # 5 second timeout for connection
+                sock.settimeout(10.0)  # Increased to 10 seconds
                 
                 # Enable TCP keepalive
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -85,13 +89,15 @@ class MasterNetwork:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 
                 if attempt > 0:
-                    print(f"[MASTER] Retry {attempt}/{retries-1}: Connecting to {ip}:{port}...")
+                    print(f"[MASTER] ⏳ Retry {attempt}/{retries-1}: Attempting connection...")
                 else:
-                    print(f"[MASTER] Attempting to connect to {ip}:{port}...")
+                    print(f"[MASTER] 🔄 Attempt 1/{retries}: Connecting to {ip}:{port}...")
                 
+                # Try to connect
                 sock.connect((ip, port))
                 sock.settimeout(30.0)  # 30 second timeout for operations after connection
-                print(f"[MASTER] Successfully connected to {worker_id}")
+                print(f"[MASTER] ✅ Successfully connected to {worker_id}")
+                print(f"[MASTER] ============================================\n")
                 
                 with self.lock:
                     self.workers[worker_id] = sock
@@ -113,37 +119,61 @@ class MasterNetwork:
                 return True
                 
             except socket.timeout:
+                print(f"[MASTER] ⏱️  Connection timed out (waited 10 seconds)")
                 if attempt < retries - 1:
-                    print(f"[MASTER] Connection timed out, retrying in 2 seconds...")
-                    time.sleep(2)
+                    print(f"[MASTER] 💤 Waiting 3 seconds before retry...")
+                    time.sleep(3)
                     continue
-                print(f"[MASTER] Connection to {worker_id} timed out after {retries} attempts.")
-                print(f"[MASTER] Worker may not be running or firewall is blocking.")
+                print(f"\n[MASTER] ❌ Connection failed after {retries} attempts")
+                print(f"[MASTER] Possible causes:")
+                print(f"[MASTER]   1. Worker is not running or didn't click 'Start Worker'")
+                print(f"[MASTER]   2. **FIREWALL is blocking the connection** (most common!)")
+                print(f"[MASTER]   3. Wrong IP address: {ip}")
+                print(f"[MASTER]   4. Wrong port: {port}")
+                print(f"[MASTER]   5. Different network (check both PCs are on same WiFi/LAN)")
+                print(f"[MASTER] ")
+                print(f"[MASTER] 🛡️  FIREWALL FIX (Run as Administrator on BOTH PCs):")
+                print(f"[MASTER]   netsh advfirewall firewall add rule name=\"WinLink\" dir=in action=allow protocol=TCP localport={port} enable=yes")
+                print(f"[MASTER] ============================================\n")
                 return False
                 
             except ConnectionRefusedError:
+                print(f"[MASTER] 🚫 Connection refused")
                 if attempt < retries - 1:
-                    print(f"[MASTER] Connection refused, retrying in 2 seconds...")
-                    time.sleep(2)
+                    print(f"[MASTER] 💤 Worker may still be starting, waiting 3 seconds...")
+                    time.sleep(3)
                     continue
-                print(f"[MASTER] Connection refused to {worker_id}. Worker is not listening on this port.")
+                print(f"\n[MASTER] ❌ Connection refused after {retries} attempts")
+                print(f"[MASTER] This means Worker is NOT listening on {ip}:{port}")
+                print(f"[MASTER] Solutions:")
+                print(f"[MASTER]   1. Check Worker console shows: '✅ Server started successfully'")
+                print(f"[MASTER]   2. Verify Worker clicked 'Start Worker' button")
+                print(f"[MASTER]   3. Check port number matches (Worker shows IP:PORT)")
+                print(f"[MASTER] ============================================\n")
                 return False
                 
             except OSError as e:
                 if e.errno == 10061:  # Connection refused (Windows)
                     if attempt < retries - 1:
-                        print(f"[MASTER] Worker not ready, retrying in 2 seconds...")
-                        time.sleep(2)
+                        print(f"[MASTER] ⏳ Worker not ready, waiting 3 seconds...")
+                        time.sleep(3)
                         continue
-                print(f"[MASTER] Network error connecting to {worker_id}: {e}")
+                elif e.errno == 10065:  # No route to host
+                    print(f"[MASTER] 🌐 No route to host {ip}")
+                    print(f"[MASTER] Check both PCs are on the same network")
+                    return False
+                print(f"[MASTER] ❌ Network error: {e}")
+                print(f"[MASTER] ============================================\n")
                 return False
                 
             except Exception as e:
                 if attempt < retries - 1:
-                    print(f"[MASTER] Connection failed: {e}, retrying in 2 seconds...")
-                    time.sleep(2)
+                    print(f"[MASTER] ⚠️  Error: {e}")
+                    print(f"[MASTER] 💤 Waiting 3 seconds before retry...")
+                    time.sleep(3)
                     continue
-                print(f"[MASTER] Failed to connect to worker {worker_id} after {retries} attempts: {e}")
+                print(f"\n[MASTER] ❌ Failed to connect: {e}")
+                print(f"[MASTER] ============================================\n")
                 return False
         
         return False
@@ -367,7 +397,16 @@ class WorkerNetwork:
                 print(f"[WORKER] Binding to {self.ip}:{port} (attempt {retry + 1}/{max_retries})")
                 self.server_socket.bind(('0.0.0.0', port))  # Listen on all interfaces
                 self.server_socket.listen(10)  # Allow up to 10 pending connections
+                
+                # Verify we can actually accept connections
                 print(f"[WORKER] ✅ Server started successfully on {self.ip}:{port}")
+                print(f"[WORKER] 🌐 Listening on all network interfaces (0.0.0.0:{port})")
+                print(f"[WORKER] 📡 Master should connect to: {self.ip}:{port}")
+                print(f"[WORKER] ")
+                print(f"[WORKER] 🛡️  IMPORTANT - Firewall Configuration:")
+                print(f"[WORKER]   If Master cannot connect, run this as Administrator:")
+                print(f"[WORKER]   netsh advfirewall firewall add rule name=\"WinLink\" dir=in action=allow protocol=TCP localport={port} enable=yes")
+                print(f"[WORKER] ")
                 print(f"[WORKER] Ready to accept connections from Master PC")
                 
                 self.running = True

@@ -235,40 +235,23 @@ Message format (example)
 - Python 3.8+ (3.7 may work but 3.8+ recommended)
 - Packages listed in `requirements.txt` (PyQt5, psutil)
 
-## Installation
+4. **IMPORTANT: Configure Windows Firewall (Required for connection)**
 
-1. Clone the repository and change to the project folder:
-
-```powershell
-git clone <repository-url>
-cd WinLink-FYP
-```
-
-2. (Optional) Create and activate a virtual environment:
+Run this as Administrator on **BOTH Master and Worker PCs**:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+# Right-click and select "Run as administrator"
+.\setup_firewall.bat
 ```
 
-3. Install dependencies:
+Or manually run:
 
 ```powershell
-pip install -r requirements.txt
+netsh advfirewall firewall add rule name="WinLink" dir=in action=allow protocol=TCP localport=3000-3100 enable=yes
+netsh advfirewall firewall add rule name="WinLink" dir=in action=allow protocol=UDP localport=5000 enable=yes
 ```
 
-## Running the App
-
-- Run the Application:
-
-```powershell
-python launch_enhanced.py
-```
-
-Notes:
-
-- To run the Master UI directly: `python master/master_ui.py`
-- To run the Worker UI directly: `python worker/worker_ui.py`
+**⚠️ Without this step, Master will NOT be able to connect to Worker!**
 
 ## Folder Structure
 
@@ -301,11 +284,36 @@ Worker:
 
 ## 🔧 Troubleshooting Connection Issues
 
+### ⚠️ Connection Timeout Error
+
+**If you see "Connection timed out" even after retries, this is almost always a FIREWALL issue.**
+
+### Quick Fix (Run as Administrator on BOTH PCs):
+
+```powershell
+.\setup_firewall.bat
+```
+
+Or manually:
+
+```powershell
+netsh advfirewall firewall add rule name="WinLink" dir=in action=allow protocol=TCP localport=3000-3100 enable=yes
+netsh advfirewall firewall add rule name="WinLink" dir=in action=allow protocol=UDP localport=5000 enable=yes
+```
+
+### Connection Checklist:
+
+1. ✅ **Firewall configured** on BOTH Master and Worker PCs (most important!)
+2. ✅ **Worker started first** - Click "Start Worker" and see "✅ Server started successfully"
+3. ✅ **Same network** - Both PCs on same WiFi/LAN (check IP addresses are in same subnet like 192.168.1.x)
+4. ✅ **Wait 10-15 seconds** after starting Worker before connecting from Master
+5. ✅ **Correct IP:Port** - Use the IP:Port shown on Worker's console
+
 ### Connection Failures
 
-The system now has **automatic retry logic** (3 attempts with 2-second delays) to handle temporary connection issues.
+The system has **automatic retry logic** (3 attempts with 3-second delays) and will show detailed error messages.
 
-**If Master cannot connect to Worker:**
+**If Master cannot connect to Worker after retries:**
 
 1. **Close all WinLink instances:**
 
@@ -326,20 +334,18 @@ The system now has **automatic retry logic** (3 attempts with 2-second delays) t
 
 ### Common Issues:
 
+**"Connection timed out" - FIREWALL BLOCKING (90% of cases):**
+
+```powershell
+# Run as Administrator on BOTH PCs
+.\setup_firewall.bat
+```
+
 **Port Already in Use:**
 
 ```powershell
-# Check what's using port 3000
-netstat -ano | findstr :3000
-# Kill the process or use a different port
-```
-
-**Firewall Blocking (First Time Setup):**
-
-```powershell
-# Run PowerShell as Administrator
-netsh advfirewall firewall add rule name="WinLink Worker" dir=in action=allow protocol=TCP localport=3000-3100 enable=yes
-netsh advfirewall firewall add rule name="WinLink Discovery" dir=in action=allow protocol=UDP localport=5000 enable=yes
+# Close all WinLink processes and restart
+taskkill /F /IM python.exe /T
 ```
 
 **Network Issues:**
