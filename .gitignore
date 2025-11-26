@@ -53,8 +53,15 @@ var/
 wheels/
 share/python-wheels/
 
-# PyInstaller
+# PyInstaller build files
 *.manifest
+*.spec
+
+# Production packaging
+WinLink_Production/
+WinLink_*.zip
+Output/
+installer/
 
 # Runtime generated files
 logs/
