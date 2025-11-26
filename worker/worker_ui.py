@@ -694,11 +694,12 @@ class WorkerUI(QWidget):
         receive_time = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"[WORKER] Logging task received: {task_name}")
         self.log(f"📥 Task received: '{task_name}' [ID: {task_id[:8]}...] at {receive_time}")
+        self.log(f"   📋 Task queued for execution")
         
-        # Immediately show the task in the UI - ensure it's visible right away
+        # Immediately show the task in the UI with 'received' status
         with self.tasks_lock:
             self.current_tasks[task_id] = {
-                "status": "pending",
+                "status": "received",
                 "progress": 0,
                 "started_at": None,
                 "memory_used_mb": 0,
@@ -710,19 +711,37 @@ class WorkerUI(QWidget):
         QTimer.singleShot(0, self._refresh_output_display)
 
         def run_task():
+            # Small delay to ensure 'received' status is visible
+            time.sleep(0.1)
+            
             start_time = time.time()
             start_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
-            self._set_task_state(task_id, status="running", progress=0, started_at=start_time)
-            self.log(f"▶️ Task started: '{task_name}' [ID: {task_id[:8]}...] at {start_time_str}")
-            self.log(f"   🖥️  EXECUTING ON WORKER: {socket.gethostname()} [{self.network.ip}]")
+            
+            # Update status to running and force UI refresh
+            self._set_task_state(task_id, status="executing", progress=0, started_at=start_time)
+            
+            # Log execution start with detailed information
+            self.log("─" * 60)
+            self.log(f"▶️  TASK EXECUTION STARTED")
+            self.log(f"   📋 Task: '{task_name}'")
+            self.log(f"   🆔 ID: {task_id[:8]}...")
+            self.log(f"   ⏰ Start Time: {start_time_str}")
+            self.log(f"   🖥️  Worker: {socket.gethostname()} [{self.network.ip}]")
+            self.log(f"   ⚙️  Status: EXECUTING")
+            self.log("─" * 60)
             print(f"[WORKER {socket.gethostname()}] 🔧 Executing task {task_id[:8]}... on THIS worker machine")
+            
+            # Force immediate UI update to show executing status
+            QTimer.singleShot(0, self._refresh_tasks_display)
             self.send_progress_update(task_id, 0)
 
             def progress_with_log(pct):
                 # Log significant progress milestones
-                if pct in [25, 50, 75]:
+                if pct in [25, 50, 75, 100]:
                     self.log(f"⏳ Task '{task_name}' [{task_id[:8]}...] progress: {pct}%")
                 self.send_progress_update(task_id, pct)
+                # Force UI refresh on progress updates
+                QTimer.singleShot(0, self._refresh_tasks_display)
             
             result = self.task_executor.execute_task(
                 code,
@@ -977,7 +996,7 @@ class WorkerUI(QWidget):
     def _refresh_tasks_display(self):
         with self.tasks_lock:
             if not self.current_tasks:
-                display = "No active tasks."
+                display = "No active tasks.\n\nWorker is ready to accept tasks from Master."
             else:
                 lines = []
                 for tid, meta in sorted(self.current_tasks.items(), key=lambda x: x[1].get("started_at") or 0, reverse=True):
@@ -985,6 +1004,7 @@ class WorkerUI(QWidget):
                     status = meta.get("status", "pending").title()
                     mem_used = meta.get("memory_used_mb", 0)
                     started_at = meta.get("started_at")
+                    task_name = meta.get("name", "Task")
                     
                     # Format time info
                     time_info = ""
@@ -993,8 +1013,12 @@ class WorkerUI(QWidget):
                         time_info = f" | Elapsed: {elapsed:.1f}s"
                     
                     mem_str = f" | RAM: {mem_used:.1f}MB" if mem_used > 0 else ""
-                    status_icon = "▶️" if status == "Running" else "✅" if status == "Done" else "❌" if status == "Failed" else "⏳"
-                    lines.append(f"{status_icon} Task {tid[:8]}\n   Status: {status} | Progress: {progress}%{mem_str}{time_info}")
+                    
+                    # Better status icons and labels
+                    status_icon = "▶️" if status in ["Executing", "Running"] else "✅" if status == "Done" else "❌" if status == "Failed" else "📥" if status == "Received" else "⏳"
+                    status_label = "EXECUTING" if status in ["Executing", "Running"] else status.upper()
+                    
+                    lines.append(f"{status_icon} {task_name} [{tid[:8]}]\n   Status: {status_label} | Progress: {progress}%{mem_str}{time_info}")
                 display = "\n\n".join(lines)
         QTimer.singleShot(0, lambda txt=display: self.tasks_display.setPlainText(txt))
     
@@ -1016,26 +1040,31 @@ class WorkerUI(QWidget):
                         reverse=True
                     )
                     latest_tid, latest_meta = tasks_with_output[0]
+                    task_name = latest_meta.get('name', 'Task')
                     output_text = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    output_text += f"Task {latest_tid[:8]} Output:\n"
+                    output_text += f"{task_name} [{latest_tid[:8]}] Output:\n"
                     output_text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     output_text += latest_meta.get('output', '')
                 else:
-                    # Show active/running tasks
+                    # Show active/executing tasks
                     active = [(tid, meta) for tid, meta in self.current_tasks.items() 
-                             if meta.get("status") == "running"]
+                             if meta.get("status") in ["executing", "running"]]
                     if active:
                         active_tid = active[0][0]
-                        progress = active[0][1].get("progress", 0)
-                        output_text = f"Task {active_tid[:8]} is running...\n"
-                        output_text += f"Progress: {progress}%\n"
-                        output_text += f"\n(Output will appear when task completes)"
+                        active_meta = active[0][1]
+                        progress = active_meta.get("progress", 0)
+                        task_name = active_meta.get("name", "Task")
+                        output_text = f"⚙️  {task_name} [{active_tid[:8]}] is EXECUTING...\n"
+                        output_text += f"\n📊 Progress: {progress}%\n"
+                        output_text += f"\n⏳ Output will appear when task completes"
                     else:
-                        # Show pending tasks
-                        pending = [(tid, meta) for tid, meta in self.current_tasks.items() 
-                                  if meta.get("status") == "pending"]
-                        if pending:
-                            output_text = f"Task {pending[0][0][:8]} is pending...\n(Waiting to start execution)"
+                        # Show received tasks
+                        received = [(tid, meta) for tid, meta in self.current_tasks.items() 
+                                  if meta.get("status") in ["received", "pending"]]
+                        if received:
+                            received_tid = received[0][0]
+                            task_name = received[0][1].get("name", "Task")
+                            output_text = f"📥 {task_name} [{received_tid[:8]}] received\n\n⏳ Waiting to start execution..."
                         else:
                             output_text = self.last_output_text if self.last_output_text != "No task output yet." else "No task output yet."
         QTimer.singleShot(0, lambda txt=output_text: self.task_output_display.setPlainText(txt))
