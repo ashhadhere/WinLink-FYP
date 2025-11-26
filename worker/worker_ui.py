@@ -881,7 +881,14 @@ class WorkerUI(QWidget):
             print(f"[LOG DEBUG] Setting text with {len(new_text)} chars, {len(lines)} lines")
             self.task_log.setPlainText(new_text)
             self.task_log.moveCursor(QTextCursor.End)
-            print(f"[LOG DEBUG] Text set successfully")
+            # Force widget to update and repaint
+            self.task_log.update()
+            self.task_log.repaint()
+            # Verify the text was actually set
+            actual_text = self.task_log.toPlainText()
+            print(f"[LOG DEBUG] Text set successfully, widget updated. Verification: {len(actual_text)} chars in widget")
+            if len(actual_text) < 50:
+                print(f"[LOG DEBUG] ACTUAL TEXT IN WIDGET: {repr(actual_text)}")
 
         QTimer.singleShot(0, append)
 
