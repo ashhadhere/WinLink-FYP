@@ -494,10 +494,11 @@ class WorkerUI(QWidget):
         self.task_log = QTextEdit()
         self.task_log.setReadOnly(True)
         # Better size constraints for log visibility
-        self.task_log.setMinimumHeight(120)  # Increased minimum height
-        self.task_log.setMaximumHeight(400)  # Reasonable maximum height
+        self.task_log.setMinimumHeight(200)  # Increased minimum height for better visibility
+        self.task_log.setMaximumHeight(600)  # Increased maximum height
         self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.task_log.setPlainText("📝 Task Execution Log\n" + "─" * 60 + "\nTask execution details will appear here...\nYou will see: task received, started, progress, completion time, and results.")
+        # Simple initial placeholder
+        self.task_log.setPlainText("=== TASK EXECUTION LOG ===\n\nWaiting for logs...")
         # Enhanced font and styling for task log
         log_font = self.task_log.font()
         log_font.setPointSize(9)  # Slightly larger font
@@ -855,40 +856,45 @@ class WorkerUI(QWidget):
         """Clear the task log and reset to placeholder"""
         self.task_log_initialized = False
         self.task_log.clear()
-        self.task_log.setPlainText("📝 Task Execution Log\n" + "─" * 60 + "\nTask execution details will appear here...\nYou will see: task received, started, progress, completion time, and results.")
+        self.task_log.setPlainText("=== TASK EXECUTION LOG ===\n\nWaiting for logs...")
 
     def log(self, msg):
         now = time.strftime("%H:%M:%S")
+        formatted_msg = f"[{now}] {msg}"
         
         # Debug: print to console to verify log is called
-        print(f"[LOG {now}] {msg}")
-        print(f"[LOG DEBUG] task_log_initialized = {self.task_log_initialized}")
+        print(f"[LOG] {formatted_msg}")
 
         def append():
-            # Clear placeholder on first real log
-            if not self.task_log_initialized:
-                print("[LOG DEBUG] First log - clearing placeholder")
-                self.task_log_initialized = True
-                self.task_log.clear()
-                lines = []
-            else:
-                current_text = self.task_log.toPlainText()
-                print(f"[LOG DEBUG] Current log has {len(current_text)} chars, {len(current_text.splitlines())} lines")
-                lines = current_text.splitlines()[-99:]
-            
-            lines.append(f"[{now}] {msg}")
-            new_text = "\n".join(lines)
-            print(f"[LOG DEBUG] Setting text with {len(new_text)} chars, {len(lines)} lines")
-            self.task_log.setPlainText(new_text)
-            self.task_log.moveCursor(QTextCursor.End)
-            # Force widget to update and repaint
-            self.task_log.update()
-            self.task_log.repaint()
-            # Verify the text was actually set
-            actual_text = self.task_log.toPlainText()
-            print(f"[LOG DEBUG] Text set successfully, widget updated. Verification: {len(actual_text)} chars in widget")
-            if len(actual_text) < 50:
-                print(f"[LOG DEBUG] ACTUAL TEXT IN WIDGET: {repr(actual_text)}")
+            try:
+                # Clear placeholder on first real log
+                if not self.task_log_initialized:
+                    print("[LOG DEBUG] First log - clearing placeholder")
+                    self.task_log_initialized = True
+                    self.task_log.clear()
+                    lines = []
+                else:
+                    current_text = self.task_log.toPlainText()
+                    lines = current_text.splitlines()[-99:]
+                
+                lines.append(formatted_msg)
+                new_text = "\n".join(lines)
+                
+                # Set the text
+                self.task_log.setPlainText(new_text)
+                self.task_log.moveCursor(QTextCursor.End)
+                
+                # Verify it was set
+                verification = self.task_log.toPlainText()
+                print(f"[LOG DEBUG] Set {len(lines)} lines ({len(new_text)} chars). Verified: {len(verification)} chars in widget")
+                
+                # Force repaint
+                self.task_log.viewport().update()
+                
+            except Exception as e:
+                print(f"[LOG ERROR] Exception in append: {e}")
+                import traceback
+                traceback.print_exc()
 
         QTimer.singleShot(0, append)
 
