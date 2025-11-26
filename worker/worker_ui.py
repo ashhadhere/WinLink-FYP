@@ -684,8 +684,6 @@ class WorkerUI(QWidget):
         task_id = data.get("task_id")
         code = data.get("code", "")
         payload = data.get("data", {})
-        
-        print(f"[WORKER] handle_task_request called with task_id: {task_id}")
 
         if not task_id or not code:
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
@@ -694,7 +692,6 @@ class WorkerUI(QWidget):
         # Log task received with timestamp
         task_name = data.get("name", "Unnamed Task")
         receive_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[WORKER] Logging task received: {task_name}")
         self.log(f"📥 Task received: '{task_name}' [ID: {task_id[:8]}...] at {receive_time}")
         self.log(f"   📋 Task queued for execution")
         
@@ -731,7 +728,6 @@ class WorkerUI(QWidget):
             self.log(f"   🖥️  Worker: {socket.gethostname()} [{self.network.ip}]")
             self.log(f"   ⚙️  Status: EXECUTING")
             self.log("─" * 60)
-            print(f"[WORKER {socket.gethostname()}] 🔧 Executing task {task_id[:8]}... on THIS worker machine")
             
             # Force immediate UI update to show executing status
             QTimer.singleShot(0, self._refresh_tasks_display)
@@ -862,16 +858,11 @@ class WorkerUI(QWidget):
         """Add a log message to the task execution log"""
         now = time.strftime("%H:%M:%S")
         formatted_msg = f"[{now}] {msg}"
-        
-        # Debug: print to console to verify log is called
-        print(f"[LOG {now}] {msg}")
-        print(f"[LOG DEBUG] task_log_initialized = {self.task_log_initialized}")
 
         def append():
             try:
                 # Clear placeholder on first real log
                 if not self.task_log_initialized:
-                    print("[LOG DEBUG] First log - clearing placeholder")
                     self.task_log_initialized = True
                     self.task_log.clear()
                     lines = []
@@ -883,20 +874,12 @@ class WorkerUI(QWidget):
                 lines.append(formatted_msg)
                 new_text = "\n".join(lines)
                 
-                print(f"[LOG DEBUG] Setting text with {len(new_text)} chars, {len(lines)} lines")
-                
                 # Update the text widget
                 self.task_log.setPlainText(new_text)
                 
                 # Move cursor to end to show latest log
                 self.task_log.moveCursor(QTextCursor.End)
                 self.task_log.ensureCursorVisible()
-                
-                print(f"[LOG DEBUG] Text set successfully")
-                
-                # Verify it was set
-                verification = self.task_log.toPlainText()
-                print(f"[LOG DEBUG] Current log has {len(verification)} chars, {len(verification.splitlines())} lines")
                 
                 # Force immediate UI update
                 self.task_log.viewport().update()
