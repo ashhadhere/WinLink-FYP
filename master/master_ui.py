@@ -525,38 +525,142 @@ class MasterUI(QtWidgets.QWidget):
         self.on_task_type_changed()
 
         # Task Queue
-        tgrp = QtWidgets.QGroupBox("Task Queue", panel)
+        tgrp = QtWidgets.QGroupBox("📋 Task Queue", panel)
         t_l = QtWidgets.QVBoxLayout(tgrp)
-        t_l.setSpacing(6)
-        t_l.setContentsMargins(8, 15, 8, 8)
-        self.tasks_table = QtWidgets.QTableWidget(0,7)
-        self.tasks_table.setHorizontalHeaderLabels(["ID","Type","Status","Worker","Progress","Result","Output"])
-        self.tasks_table.horizontalHeader().setStretchLastSection(True)
-        self.tasks_table.setColumnWidth(0, 70)   # ID column
-        self.tasks_table.setColumnWidth(1, 90)   # Type column
-        self.tasks_table.setColumnWidth(2, 80)   # Status column
-        self.tasks_table.setColumnWidth(3, 120)  # Worker column
-        self.tasks_table.setColumnWidth(4, 70)   # Progress column
-        self.tasks_table.setColumnWidth(5, 180)  # Result column
-        self.tasks_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)  # Output column stretches
+        t_l.setSpacing(8)
+        t_l.setContentsMargins(10, 18, 10, 10)
+        
+        # Tasks table with improved styling
+        self.tasks_table = QtWidgets.QTableWidget(0, 7)
+        self.tasks_table.setHorizontalHeaderLabels(["ID", "Type", "Status", "Worker", "Progress", "Result", "Output"])
+        
+        # Column widths
+        self.tasks_table.setColumnWidth(0, 80)   # ID
+        self.tasks_table.setColumnWidth(1, 100)  # Type
+        self.tasks_table.setColumnWidth(2, 90)   # Status
+        self.tasks_table.setColumnWidth(3, 130)  # Worker
+        self.tasks_table.setColumnWidth(4, 100)  # Progress
+        self.tasks_table.setColumnWidth(5, 150)  # Result
+        
+        # Table properties
         self.tasks_table.setAlternatingRowColors(True)
         self.tasks_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.tasks_table.setWordWrap(True)  # Enable word wrap
+        self.tasks_table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.tasks_table.setWordWrap(True)
         self.tasks_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        # Improve header appearance
+        self.tasks_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.tasks_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.tasks_table.setMinimumHeight(200)
+        
+        # Header styling
         header = self.tasks_table.horizontalHeader()
+        header.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setSectionResizeMode(6, QHeaderView.Stretch)  # Output stretches
+        header.setStretchLastSection(True)
         hf = header.font()
         hf.setBold(True)
+        hf.setPointSize(9)
         header.setFont(hf)
-        header.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
-        # Make progress column narrow and output stretch
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
-        header.setSectionResizeMode(6, QHeaderView.Stretch)
-        self.tasks_table.setColumnWidth(4, 100)
+        header.setMinimumHeight(32)
+        
+        # Vertical header
+        self.tasks_table.verticalHeader().setVisible(False)
+        self.tasks_table.verticalHeader().setDefaultSectionSize(40)
+        
+        # Table styling
+        self.tasks_table.setStyleSheet("""
+            QTableWidget {
+                background: rgba(15, 20, 30, 0.95);
+                color: #e6e6fa;
+                border: 2px solid rgba(100, 255, 160, 0.25);
+                border-radius: 6px;
+                gridline-color: rgba(255, 255, 255, 0.08);
+                font-size: 9pt;
+            }
+            QTableWidget::item {
+                padding: 6px;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background: rgba(0, 245, 160, 0.2);
+                color: white;
+            }
+            QTableWidget::item:hover {
+                background: rgba(0, 245, 160, 0.1);
+            }
+            QHeaderView::section {
+                background: rgba(30, 35, 45, 0.95);
+                color: #00f5a0;
+                padding: 8px;
+                border: none;
+                border-bottom: 2px solid rgba(0, 245, 160, 0.3);
+                font-weight: bold;
+                font-size: 9pt;
+            }
+            QHeaderView::section:hover {
+                background: rgba(40, 45, 55, 0.95);
+            }
+        """)
+        
         t_l.addWidget(self.tasks_table)
-        clear_btn = QtWidgets.QPushButton("Clear Completed"); clear_btn.setObjectName("stopBtn")
+        
+        # Action buttons
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.setSpacing(8)
+        
+        # Refresh button
+        refresh_btn = QtWidgets.QPushButton("🔄 Refresh")
+        refresh_btn.setMinimumHeight(34)
+        refresh_btn.setFixedWidth(110)
+        refresh_btn.clicked.connect(self.refresh_task_table_async)
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(102, 126, 234, 0.7);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(102, 126, 234, 0.85);
+            }
+            QPushButton:pressed {
+                background: rgba(102, 126, 234, 0.6);
+            }
+        """)
+        
+        # Clear completed button
+        clear_btn = QtWidgets.QPushButton("🗑️ Clear Completed")
+        clear_btn.setObjectName("stopBtn")
+        clear_btn.setMinimumHeight(34)
+        clear_btn.setFixedWidth(150)
         clear_btn.clicked.connect(self.clear_completed_tasks)
-        t_l.addWidget(clear_btn, alignment=QtCore.Qt.AlignRight)
+        clear_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(255, 100, 100, 0.7);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: rgba(255, 120, 120, 0.85);
+            }
+            QPushButton:pressed {
+                background: rgba(255, 100, 100, 0.6);
+            }
+        """)
+        
+        btn_layout.addWidget(refresh_btn)
+        btn_layout.addWidget(clear_btn)
+        btn_layout.addStretch()
+        
+        t_l.addLayout(btn_layout)
         lay.addWidget(tgrp)
 
         return panel
@@ -585,7 +689,12 @@ class MasterUI(QtWidgets.QWidget):
         for i in range(self.discovered_combo.count()):
             item = self.discovered_combo.model().item(i)
             if item and item.checkState() == QtCore.Qt.Checked:
-                checked_workers.append(item.data(Qt.UserRole))
+                worker_info_json = item.data(Qt.UserRole)
+                if worker_info_json:
+                    try:
+                        checked_workers.append(json.loads(worker_info_json))
+                    except (json.JSONDecodeError, TypeError):
+                        pass
         
         # Clear and repopulate
         self.discovered_combo.clear()
@@ -622,7 +731,8 @@ class MasterUI(QtWidgets.QWidget):
             item = self.discovered_combo.model().item(self.discovered_combo.count() - 1)
             if item:
                 item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
-                item.setData(Qt.UserRole, info)
+                # Store worker info as JSON string to avoid dict type error
+                item.setData(json.dumps(info), Qt.UserRole)
                 
                 # Restore check state if it was previously checked
                 if info in checked_workers:
@@ -670,9 +780,13 @@ class MasterUI(QtWidgets.QWidget):
         for i in range(self.discovered_combo.count()):
             item = self.discovered_combo.model().item(i)
             if item and item.checkState() == QtCore.Qt.Checked:
-                worker_info = item.data(Qt.UserRole)
-                if worker_info:
-                    selected_workers.append(worker_info)
+                worker_info_json = item.data(Qt.UserRole)
+                if worker_info_json:
+                    try:
+                        worker_info = json.loads(worker_info_json)
+                        selected_workers.append(worker_info)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
         
         if not selected_workers:
             QtWidgets.QMessageBox.warning(self, "No Selection", "Please check at least one worker from the dropdown")
