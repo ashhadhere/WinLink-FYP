@@ -42,6 +42,7 @@ class WorkerUI(QWidget):
         self.tasks_lock = threading.Lock()
         self.monitoring_active = True
         self.last_output_text = "No task output yet."
+        self.task_log_initialized = False  # Track if we've written first real log
 
         # Network handlers
         self.network.register_handler(MessageType.TASK_REQUEST, self.handle_task_request)
@@ -857,7 +858,14 @@ class WorkerUI(QWidget):
         print(f"[LOG {now}] {msg}")
 
         def append():
-            lines = self.task_log.toPlainText().splitlines()[-99:]
+            # Clear placeholder on first real log
+            if not self.task_log_initialized:
+                self.task_log_initialized = True
+                self.task_log.clear()
+                lines = []
+            else:
+                lines = self.task_log.toPlainText().splitlines()[-99:]
+            
             lines.append(f"[{now}] {msg}")
             self.task_log.setPlainText("\n".join(lines))
             self.task_log.moveCursor(QTextCursor.End)
