@@ -136,18 +136,24 @@ class ModernSystemTray(QSystemTrayIcon):
         self.setup_menu()
 
     def setup_tray(self):
-        # Create a simple icon (you can replace with actual icon file)
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor(0, 212, 170))
+        import os
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "WinLink_logo.ico")
         
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(QColor(255, 255, 255))
-        painter.setFont(painter.font())
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "W")
-        painter.end()
+        if os.path.exists(icon_path):
+            self.setIcon(QIcon(icon_path))
+        else:
+            pixmap = QPixmap(32, 32)
+            pixmap.fill(QColor(0, 212, 170))
+            
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setPen(QColor(255, 255, 255))
+            painter.setFont(painter.font())
+            painter.drawText(pixmap.rect(), Qt.AlignCenter, "W")
+            painter.end()
+            
+            self.setIcon(QIcon(pixmap))
         
-        self.setIcon(QIcon(pixmap))
         self.setToolTip("WinLink - Distributed Computing Platform")
 
     def setup_menu(self):

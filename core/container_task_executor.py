@@ -24,8 +24,7 @@ class ContainerTaskExecutor:
         self.max_execution_time = 300  # 5 minutes max
         self.max_memory_mb = 512  # 512MB max memory per task
         self.max_cpu_percent = 50  # 50% max CPU usage
-        
-        # Docker configuration
+
         self.docker_image = "winlink-task-executor:latest"
         self.container_network = "task_isolation"
         
@@ -37,8 +36,7 @@ class ContainerTaskExecutor:
             except Exception as e:
                 logger.warning(f"Docker not available, falling back to direct execution: {e}")
                 self.use_containers = False
-        
-        # Fallback executor for non-containerized execution
+
         if not self.use_containers:
             from core.task_executor import TaskExecutor
             self.fallback_executor = TaskExecutor()
@@ -51,22 +49,18 @@ class ContainerTaskExecutor:
         except docker.errors.ImageNotFound:
             logger.info(f"Building Docker image {self.docker_image}...")
             try:
-                # Create a simple Dockerfile content for Windows-compatible task execution
+
                 dockerfile_content = """
 FROM python:3.9-slim
 
-# Create non-root user for task execution
 RUN groupadd -r taskexec && useradd -r -g taskexec taskexec
 
-# Install basic packages
 RUN apt-get update && apt-get install -y \\
     --no-install-recommends \\
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
 WORKDIR /app
 
-# Copy and create container executor script
 RUN echo '#!/usr/bin/env python3' > container-executor.py && \\
     echo 'import sys, json, time, traceback' >> container-executor.py && \\
     echo 'try:' >> container-executor.py && \\
@@ -79,19 +73,15 @@ RUN echo '#!/usr/bin/env python3' > container-executor.py && \\
     echo '    print(json.dumps({"success": False, "error": str(e), "traceback": traceback.format_exc()}))' >> container-executor.py && \\
     chmod +x container-executor.py
 
-# Set up temp directory
 RUN mkdir -p /app/temp && chown -R taskexec:taskexec /app
 
-# Switch to non-root user
 USER taskexec
 
-# Set working directory
 WORKDIR /app
 
 CMD ["python", "container-executor.py"]
 """
-                
-                # Build image using string dockerfile
+
                 import tempfile
                 import os
                 
@@ -143,14 +133,13 @@ CMD ["python", "container-executor.py"]
         container = None
         
         try:
-            # Prepare task payload
+
             task_payload = {
                 'task_id': task_id or f"task_{int(time.time())}",
                 'code': task_code,
                 'data': task_data
             }
-            
-            # Create container with security constraints
+
             container_config = {
                 'image': self.docker_image,
                 'detach': True,
@@ -175,17 +164,14 @@ CMD ["python", "container-executor.py"]
                     '/tmp': 'rw,noexec,nosuid,nodev,size=100m'
                 }
             }
-            
-            # Create and start container
+
             logger.info(f"Creating container for task {task_payload['task_id']}")
-            
-            # Pass task data as environment variable for simplicity
+
             import base64
             task_json = json.dumps(task_payload)
             task_b64 = base64.b64encode(task_json.encode()).decode()
             container_config['environment']['TASK_DATA_B64'] = task_b64
-            
-            # Update the container command to read from environment
+
             container_config['command'] = [
                 'python', '-c', 
                 '''
@@ -203,26 +189,23 @@ except Exception as e:
             ]
             
             container = self.docker_client.containers.run(**container_config)
-            
-            # Wait for container completion with timeout
+
             try:
                 result = container.wait(timeout=self.max_execution_time)
                 exit_code = result['StatusCode']
-                
-                # Get container logs (stdout/stderr)
+
                 logs = container.logs(stdout=True, stderr=True).decode('utf-8')
-                
-                # Parse result from logs (last line should be JSON result)
+
                 result_lines = [line for line in logs.split('\n') if line.strip()]
                 if result_lines:
                     try:
-                        # Look for JSON result in the logs
+
                         for line in reversed(result_lines):
                             if line.strip().startswith('{') and line.strip().endswith('}'):
                                 result_data = json.loads(line.strip())
                                 break
                         else:
-                            # No JSON result found, create error result
+
                             result_data = {
                                 'success': False,
                                 'result': None,
@@ -252,11 +235,9 @@ except Exception as e:
                         'stdout': '',
                         'stderr': ''
                     }
-                
-                # Update execution time
+
                 result_data['execution_time'] = time.time() - start_time
-                
-                # Report final progress
+
                 if progress_callback:
                     try:
                         progress_callback(100 if result_data.get('success') else 0)
@@ -290,7 +271,7 @@ except Exception as e:
             }
             
         finally:
-            # Cleanup container
+
             if container:
                 try:
                     container.stop(timeout=5)
@@ -307,8 +288,7 @@ except Exception as e:
             
             battery = psutil.sensors_battery()
             mem = psutil.virtual_memory()
-            
-            # Get disk usage - handle Windows vs Unix
+
             if platform.system() == "Windows":
                 disk_path = os.getenv("SystemDrive", "C:") + "\\"
             else:
@@ -367,5 +347,4 @@ except Exception as e:
         except Exception as e:
             logger.warning(f"Container cleanup failed: {e}")
 
-# Backward compatibility alias
 TaskExecutor = ContainerTaskExecutor

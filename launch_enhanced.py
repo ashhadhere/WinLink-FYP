@@ -222,9 +222,14 @@ def create_system_tray(app):
             ))
             return tray
         else:
-            # Basic system tray fallback
             from PyQt5.QtGui import QIcon
             tray = QSystemTrayIcon()
+            
+            icon_path = os.path.join(project_root, "assets", "WinLink_logo.ico")
+            if os.path.exists(icon_path):
+                tray.setIcon(QIcon(icon_path))
+            
+            tray.setToolTip("WinLink - Distributed Computing Platform")
             if tray.isSystemTrayAvailable():
                 tray.show()
                 return tray
@@ -310,6 +315,21 @@ Examples:
     app.setApplicationVersion("2.0")
     app.setOrganizationName("WinLink FYP")
     app.setStyleSheet(STYLE_SHEET)
+    
+    import ctypes
+    try:
+        myappid = 'winlink.fyp.distributed.2.0'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        pass
+    
+    icon_path = os.path.join(project_root, "assets", "WinLink_logo.ico")
+    if os.path.exists(icon_path):
+        from PyQt5.QtGui import QIcon
+        app.setWindowIcon(QIcon(icon_path))
+        print(f"✅ Application icon loaded from {icon_path}")
+    else:
+        print("⚠️  Icon not found at assets/WinLink_logo.ico")
     
     # Load configuration
     try:

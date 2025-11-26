@@ -21,14 +21,13 @@ import base64
 logger = logging.getLogger(__name__)
 
 class MessageType:
-    # Master to Worker messages
+
     TASK_REQUEST = "task_request"
     RESOURCE_REQUEST = "resource_request"
     HEARTBEAT = "heartbeat"
     DISCONNECT = "disconnect"
     AUTH_CHALLENGE = "auth_challenge"
-    
-    # Worker to Master messages
+
     TASK_RESULT = "task_result"
     RESOURCE_DATA = "resource_data"
     HEARTBEAT_RESPONSE = "heartbeat_response"
@@ -76,7 +75,7 @@ class AuthenticationManager:
                 with open(self.auth_token_file, 'r') as f:
                     self.master_token = f.read().strip()
             else:
-                # Generate new token
+
                 self.master_token = self._generate_token()
                 os.makedirs(os.path.dirname(self.auth_token_file), exist_ok=True)
                 with open(self.auth_token_file, 'w') as f:
@@ -108,13 +107,11 @@ class AuthenticationManager:
             return False
         
         session = self.session_tokens[client_id]
-        
-        # Check if challenge is still valid (not expired)
+
         if time.time() - session['created_at'] > 300:  # 5 minutes
             del self.session_tokens[client_id]
             return False
-        
-        # Expected response: HMAC(token, challenge)
+
         expected_response = hmac.new(
             self.master_token.encode(),
             session['challenge'].encode(),
@@ -136,8 +133,7 @@ class AuthenticationManager:
         session = self.session_tokens[client_id]
         if not session.get('authenticated', False):
             return False
-        
-        # Check token expiry
+
         if time.time() - session.get('auth_time', 0) > self.token_expiry:
             del self.session_tokens[client_id]
             return False
@@ -171,14 +167,12 @@ class TLSSocketWrapper:
             from cryptography.hazmat.primitives import serialization
             from cryptography.hazmat.primitives.asymmetric import rsa
             import datetime
-            
-            # Generate private key
+
             private_key = rsa.generate_private_key(
                 public_exponent=65537,
                 key_size=2048,
             )
-            
-            # Create certificate
+
             subject = issuer = x509.Name([
                 x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
                 x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "State"),
@@ -207,20 +201,17 @@ class TLSSocketWrapper:
                 ]),
                 critical=False,
             ).sign(private_key, hashes.SHA256())
-            
-            # Write private key
+
             with open(self.key_file, "wb") as f:
                 f.write(private_key.private_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
                     encryption_algorithm=serialization.NoEncryption()
                 ))
-            
-            # Write certificate
+
             with open(self.cert_file, "wb") as f:
                 f.write(cert.public_bytes(serialization.Encoding.PEM))
-            
-            # Set file permissions
+
             os.chmod(self.key_file, 0o600)
             os.chmod(self.cert_file, 0o644)
             
@@ -228,7 +219,7 @@ class TLSSocketWrapper:
             
         except Exception as e:
             logger.error(f"Failed to generate SSL certificate: {e}")
-            # Create dummy files to prevent repeated attempts
+
             with open(self.cert_file, 'w') as f:
                 f.write("# Dummy certificate file\n")
             with open(self.key_file, 'w') as f:
@@ -260,8 +251,7 @@ class SecureMasterNetwork:
         self.message_handlers: Dict[str, Callable] = {}
         self.running = False
         self.lock = threading.Lock()
-        
-        # Security components
+
         self.use_tls = use_tls
         self.auth_manager = AuthenticationManager(auth_token_file)
         self.tls_wrapper = TLSSocketWrapper() if use_tls else None
@@ -275,18 +265,16 @@ class SecureMasterNetwork:
     def connect_to_worker(self, worker_id: str, ip: str, port: int) -> bool:
         """Connect to a worker PC with TLS and authentication"""
         try:
-            # Create socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            
-            # Wrap with TLS if enabled
+
             if self.use_tls and self.tls_wrapper:
                 context = self.tls_wrapper.create_client_context()
                 if context:
                     sock = context.wrap_socket(sock, server_hostname=ip)
             
             sock.connect((ip, port))
-            
-            # Perform authentication handshake
+
             if not self._authenticate_worker(sock, worker_id):
                 sock.close()
                 return False
@@ -301,8 +289,7 @@ class SecureMasterNetwork:
                     'status': 'connected',
                     'authenticated': True
                 }
-            
-            # Start listening for messages from this worker
+
             threading.Thread(
                 target=self._listen_to_worker,
                 args=(worker_id, sock),
@@ -319,22 +306,20 @@ class SecureMasterNetwork:
     def _authenticate_worker(self, sock: socket.socket, worker_id: str) -> bool:
         """Perform authentication handshake with worker"""
         try:
-            # Send authentication challenge
+
             challenge = self.auth_manager.create_challenge(worker_id)
             challenge_msg = SecureNetworkMessage(MessageType.AUTH_CHALLENGE, {
                 'challenge': challenge
             })
             sock.send(challenge_msg.to_json().encode() + b'\n')
-            
-            # Wait for response
+
             response_data = sock.recv(4096).decode().strip()
             response_msg = SecureNetworkMessage.from_json(response_data)
             
             if response_msg.type != MessageType.AUTH_RESPONSE:
                 logger.warning(f"Worker {worker_id} sent invalid auth response type")
                 return False
-            
-            # Verify response
+
             auth_response = response_msg.data.get('response', '')
             if self.auth_manager.verify_response(worker_id, auth_response):
                 logger.info(f"Worker {worker_id} authenticated successfully")
@@ -375,8 +360,7 @@ class SecureMasterNetwork:
         """Request system resource data from a worker"""
         msg = SecureNetworkMessage(MessageType.RESOURCE_REQUEST, {})
         return self._send_message_to_worker(worker_id, msg)
-    
-    # ... (rest of the methods remain similar to original, with TLS and auth checks)
+
     
     def _listen_to_worker(self, worker_id: str, sock):
         """Listen for messages from a worker"""
@@ -407,12 +391,11 @@ class SecureMasterNetwork:
     
     def _handle_worker_message(self, worker_id: str, message: SecureNetworkMessage):
         """Handle a message from a worker"""
-        # Update last heartbeat
+
         with self.lock:
             if worker_id in self.worker_info:
                 self.worker_info[worker_id]['last_heartbeat'] = time.time()
-        
-        # Call registered handler
+
         if message.type in self.message_handlers:
             self.message_handlers[message.type](worker_id, message.data)
     
@@ -428,8 +411,7 @@ class SecureMasterNetwork:
             
             if worker_id in self.worker_info:
                 self.worker_info[worker_id]['status'] = 'disconnected'
-        
-        # Clean up authentication session
+
         if worker_id in self.auth_manager.session_tokens:
             del self.auth_manager.session_tokens[worker_id]
     
@@ -465,11 +447,4 @@ class SecureMasterNetwork:
                 if worker_id in self.worker_info:
                     self.worker_info[worker_id]['status'] = 'disconnected'
 
-# Secure Worker Network implementation would be similar...
-# For brevity, I'm showing the pattern. The full implementation would include:
-# - SecureWorkerNetwork class with TLS client functionality
-# - Authentication response handling
-# - Message encryption/decryption if needed
-
-# Backward compatibility aliases
 MasterNetwork = SecureMasterNetwork

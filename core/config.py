@@ -6,7 +6,6 @@ import os
 import logging
 from typing import Dict, Any
 
-# Security Configuration
 SECURITY_CONFIG = {
     'enable_tls': True,
     'enable_authentication': True,
@@ -14,24 +13,20 @@ SECURITY_CONFIG = {
     'enable_seccomp': True,
     'enable_apparmor': True,
     'enable_cgroups': True,
-    
-    # Paths
+
     'ssl_cert_file': 'ssl/server.crt',
     'ssl_key_file': 'ssl/server.key',
     'auth_token_file': 'secrets/auth_token.txt',
-    
-    # Resource limits
+
     'max_memory_mb': 512,
     'max_cpu_percent': 50,
     'max_execution_time': 300,
     'max_file_size_mb': 100,
     'max_processes': 10,
-    
-    # Container settings
+
     'docker_image': 'winlink-task-executor:latest',
 }
 
-# Database Configuration
 DATABASE_CONFIG = {
     'db_path': 'data/winlink.db',
     'enable_logging': True,
@@ -40,7 +35,6 @@ DATABASE_CONFIG = {
 
 }
 
-# Scheduler Configuration
 SCHEDULER_CONFIG = {
     'enable_advanced_scheduling': True,
     'enable_load_balancing': True,
@@ -48,17 +42,14 @@ SCHEDULER_CONFIG = {
     'scheduler_interval': 1.0,
     'max_retries': 3,
     'retry_delay_base': 5.0,
-    
-    # Load balancing strategy
+
     'load_balancing_strategy': 'performance_based',  # round_robin, least_loaded, performance_based, capability_aware
-    
-    # Worker capacity
+
     'default_max_concurrent_tasks': 5,
     'heartbeat_timeout': 300,
     'performance_window': 20,  # Number of recent tasks to consider for performance calculation
 }
 
-# Network Configuration
 NETWORK_CONFIG = {
     'master_port': 9000,
     'worker_port': 9001,
@@ -71,7 +62,6 @@ NETWORK_CONFIG = {
     ],
 }
 
-# Logging Configuration
 LOGGING_CONFIG = {
     'level': 'INFO',
     'format': '[%(asctime)s] %(levelname)s:%(name)s: %(message)s',
@@ -82,7 +72,6 @@ LOGGING_CONFIG = {
     'enable_file': True,
 }
 
-# Monitoring Configuration
 MONITORING_CONFIG = {
     'enable_resource_monitoring': True,
     'resource_collection_interval': 5,
@@ -91,7 +80,6 @@ MONITORING_CONFIG = {
     'health_check_interval': 60,
 }
 
-# UI Configuration
 UI_CONFIG = {
     'enable_security_dashboard': True,
     'show_performance_metrics': True,
@@ -110,15 +98,12 @@ class WinLinkConfig:
         self.logging = LOGGING_CONFIG.copy()
         self.monitoring = MONITORING_CONFIG.copy()
         self.ui = UI_CONFIG.copy()
-        
-        # Load from file if provided
+
         if config_file and os.path.exists(config_file):
             self.load_from_file(config_file)
-        
-        # Apply environment variable overrides
+
         self.apply_env_overrides()
-        
-        # Apply configuration overrides (e.g., from minimal installation)
+
         self._apply_config_overrides()
     
     def load_from_file(self, config_file: str):
@@ -127,8 +112,7 @@ class WinLinkConfig:
             import json
             with open(config_file, 'r') as f:
                 config_data = json.load(f)
-            
-            # Update configurations
+
             for section_name, section_config in config_data.items():
                 if hasattr(self, section_name):
                     getattr(self, section_name).update(section_config)
@@ -175,8 +159,7 @@ class WinLinkConfig:
                 spec = importlib.util.spec_from_file_location("config_override", override_file)
                 override_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(override_module)
-                
-                # Apply overrides
+
                 if hasattr(override_module, 'DISABLE_CONTAINERS') and override_module.DISABLE_CONTAINERS:
                     self.security['enable_containers'] = False
                     logging.info("Containerization disabled by configuration override")
@@ -224,8 +207,7 @@ class WinLinkConfig:
     def validate(self) -> bool:
         """Validate configuration settings"""
         valid = True
-        
-        # Check required files exist if features are enabled
+
         if self.security['enable_tls']:
             cert_file = self.security['ssl_cert_file']
             key_file = self.security['ssl_key_file']
@@ -241,15 +223,13 @@ class WinLinkConfig:
             if not os.path.exists(token_file):
                 logging.error(f"Authentication enabled but token file not found: {token_file}")
                 valid = False
-        
-        # Validate resource limits
+
         if self.security['max_memory_mb'] < 128:
             logging.warning(f"Memory limit very low: {self.security['max_memory_mb']}MB")
         
         if self.security['max_cpu_percent'] < 10:
             logging.warning(f"CPU limit very low: {self.security['max_cpu_percent']}%")
-        
-        # Validate ports
+
         if not (1024 <= self.network['master_port'] <= 65535):
             logging.error(f"Invalid master port: {self.network['master_port']}")
             valid = False
@@ -263,12 +243,10 @@ class WinLinkConfig:
     def setup_logging(self):
         """Set up logging based on configuration"""
         log_level = getattr(logging, self.logging['level'].upper(), logging.INFO)
-        
-        # Create logs directory
+
         log_file = self.logging['file_path']
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        
-        # Set up handlers
+
         handlers = []
         
         if self.logging['enable_console']:
@@ -282,8 +260,7 @@ class WinLinkConfig:
                 maxBytes=max_bytes,
                 backupCount=self.logging['backup_count']
             ))
-        
-        # Configure logging
+
         logging.basicConfig(
             level=log_level,
             format=self.logging['format'],
@@ -295,7 +272,6 @@ class WinLinkConfig:
         """String representation of configuration"""
         return f"WinLinkConfig(security_features={len([f for f in self.get_security_features().values() if f])})"
 
-# Global configuration instance
 _config_instance = None
 
 def get_config(config_file: str = None) -> WinLinkConfig:
@@ -319,5 +295,4 @@ def load_config(config_file: str = None) -> WinLinkConfig:
     
     return config
 
-# Default configuration for backwards compatibility
 DEFAULT_CONFIG = WinLinkConfig()

@@ -14,7 +14,6 @@ from pathlib import Path
 import json
 import signal
 
-# Windows-specific imports
 try:
     import resource
 except ImportError:
@@ -39,25 +38,22 @@ class SecurityHardening:
     def _check_available_features(self):
         """Check which security features are available on the system"""
         if self.is_linux:
-            # Check for seccomp
+
             try:
                 import seccomp
                 self.security_features.append('seccomp')
                 logger.info("Seccomp support detected")
             except ImportError:
                 logger.warning("Seccomp not available - install python-seccomp package")
-            
-            # Check for AppArmor
+
             if os.path.exists('/sys/module/apparmor'):
                 self.security_features.append('apparmor')
                 logger.info("AppArmor support detected")
-            
-            # Check for SELinux
+
             if os.path.exists('/sys/fs/selinux'):
                 self.security_features.append('selinux')
                 logger.info("SELinux support detected")
-            
-            # Check for cgroups v2
+
             if os.path.exists('/sys/fs/cgroup/cgroup.controllers'):
                 self.security_features.append('cgroups_v2')
                 logger.info("Cgroups v2 support detected")
@@ -66,7 +62,7 @@ class SecurityHardening:
                 logger.info("Cgroups v1 support detected")
         
         elif self.is_windows:
-            # Windows-specific security features
+
             self.security_features.extend(['job_objects', 'restricted_tokens'])
             logger.info("Windows security features available")
     
@@ -98,53 +94,45 @@ class SecurityHardening:
             
         except Exception as e:
             logger.error(f"Failed to create secure environment: {e}")
-            # Fallback to basic restrictions
+
             self._apply_basic_restrictions(env_config)
             return env_config
     
     def _setup_linux_security(self, env_config: Dict[str, Any]):
         """Set up Linux-specific security measures"""
-        
-        # Create dedicated user if not exists
+
         if self._ensure_secure_user(env_config['user_name']):
             env_config['restrictions_applied'].append('dedicated_user')
-        
-        # Set up seccomp filter
+
         if 'seccomp' in self.security_features:
             self._apply_seccomp_filter(env_config)
             env_config['restrictions_applied'].append('seccomp_filter')
-        
-        # Set up cgroups limits
+
         if 'cgroups_v2' in self.security_features or 'cgroups_v1' in self.security_features:
             self._setup_cgroups(env_config)
             env_config['restrictions_applied'].append('cgroups_limits')
-        
-        # Apply AppArmor/SELinux profile
+
         if 'apparmor' in self.security_features:
             self._apply_apparmor_profile(env_config)
             env_config['restrictions_applied'].append('apparmor_profile')
         elif 'selinux' in self.security_features:
             self._apply_selinux_context(env_config)
             env_config['restrictions_applied'].append('selinux_context')
-        
-        # Set up secure temp directory
+
         self._setup_secure_temp_dir(env_config)
         env_config['restrictions_applied'].append('secure_temp_dir')
     
     def _setup_windows_security(self, env_config: Dict[str, Any]):
         """Set up Windows-specific security measures"""
-        
-        # Create restricted token
+
         if 'restricted_tokens' in self.security_features:
             self._create_restricted_token(env_config)
             env_config['restrictions_applied'].append('restricted_token')
-        
-        # Set up job object for resource limits
+
         if 'job_objects' in self.security_features:
             self._setup_windows_job_object(env_config)
             env_config['restrictions_applied'].append('job_object')
-        
-        # Set up secure temp directory
+
         self._setup_secure_temp_dir(env_config)
         env_config['restrictions_applied'].append('secure_temp_dir')
     
@@ -152,15 +140,14 @@ class SecurityHardening:
         """Ensure dedicated user account exists for task execution"""
         try:
             if self.is_linux and pwd is not None:
-                # Linux implementation
+
                 try:
                     pwd.getpwnam(user_name)
                     logger.debug(f"User {user_name} already exists")
                     return True
                 except KeyError:
                     pass
-                
-                # Create user with minimal privileges
+
                 subprocess.run([
                     'sudo', 'useradd', 
                     '--system',  # System user
@@ -173,7 +160,7 @@ class SecurityHardening:
                 logger.info(f"Created secure user: {user_name}")
                 return True
             elif self.is_windows:
-                # Windows implementation - use current user with job objects
+
                 logger.info(f"Using current user with Windows job object restrictions")
                 return True
             else:
@@ -191,11 +178,9 @@ class SecurityHardening:
         """Apply seccomp syscall filtering"""
         try:
             import seccomp
-            
-            # Create restrictive seccomp filter
+
             f = seccomp.SyscallFilter(defaction=seccomp.ERRNO(1))
-            
-            # Allow essential syscalls
+
             essential_syscalls = [
                 'read', 'write', 'open', 'close', 'stat', 'fstat', 'lstat',
                 'poll', 'lseek', 'mmap', 'mprotect', 'munmap', 'brk',
@@ -216,10 +201,9 @@ class SecurityHardening:
                 try:
                     f.add_rule(seccomp.ALLOW, syscall)
                 except OSError:
-                    # Syscall might not exist on this architecture
+
                     pass
-            
-            # Block dangerous syscalls explicitly
+
             dangerous_syscalls = [
                 'ptrace', 'mount', 'umount', 'umount2', 'swapon', 'swapoff',
                 'reboot', 'sethostname', 'setdomainname', 'init_module',
@@ -231,8 +215,7 @@ class SecurityHardening:
                     f.add_rule(seccomp.ERRNO(1), syscall)
                 except OSError:
                     pass
-            
-            # Apply the filter
+
             f.load()
             env_config['seccomp_filter'] = True
             logger.info("Seccomp filter applied successfully")
@@ -260,20 +243,17 @@ class SecurityHardening:
         cgroup_path = f"/sys/fs/cgroup/{cgroup_name}"
         
         try:
-            # Create cgroup
+
             os.makedirs(cgroup_path, exist_ok=True)
-            
-            # Set memory limit
+
             memory_limit = env_config['memory_limit_mb'] * 1024 * 1024
             with open(f"{cgroup_path}/memory.max", 'w') as f:
                 f.write(str(memory_limit))
-            
-            # Set CPU limit
+
             cpu_quota = int(100000 * (env_config['cpu_limit_percent'] / 100))
             with open(f"{cgroup_path}/cpu.max", 'w') as f:
                 f.write(f"{cpu_quota} 100000")
-            
-            # Add current process to cgroup
+
             with open(f"{cgroup_path}/cgroup.procs", 'w') as f:
                 f.write(str(os.getpid()))
             
@@ -285,7 +265,7 @@ class SecurityHardening:
     def _setup_cgroups_v1(self, env_config: Dict[str, Any], cgroup_name: str):
         """Set up cgroups v1 limits"""
         try:
-            # Memory cgroup
+
             memory_cgroup_path = f"/sys/fs/cgroup/memory/{cgroup_name}"
             os.makedirs(memory_cgroup_path, exist_ok=True)
             
@@ -295,8 +275,7 @@ class SecurityHardening:
             
             with open(f"{memory_cgroup_path}/memory.memsw.limit_in_bytes", 'w') as f:
                 f.write(str(memory_limit))
-            
-            # CPU cgroup
+
             cpu_cgroup_path = f"/sys/fs/cgroup/cpu/{cgroup_name}"
             os.makedirs(cpu_cgroup_path, exist_ok=True)
             
@@ -306,8 +285,7 @@ class SecurityHardening:
             
             with open(f"{cpu_cgroup_path}/cpu.cfs_period_us", 'w') as f:
                 f.write("100000")
-            
-            # Add process to cgroups
+
             with open(f"{memory_cgroup_path}/cgroup.procs", 'w') as f:
                 f.write(str(os.getpid()))
             
@@ -323,14 +301,12 @@ class SecurityHardening:
         """Apply AppArmor security profile"""
         try:
             profile_name = "winlink-task-profile"
-            
-            # Check if profile is loaded
+
             result = subprocess.run(['aa-status'], capture_output=True, text=True)
             if profile_name not in result.stdout:
                 logger.warning(f"AppArmor profile {profile_name} not loaded")
                 return
-            
-            # Apply profile to current process
+
             subprocess.run(['aa-exec', '-p', profile_name, '--'], check=True)
             env_config['apparmor_profile'] = profile_name
             logger.info(f"AppArmor profile {profile_name} applied")
@@ -341,7 +317,7 @@ class SecurityHardening:
     def _apply_selinux_context(self, env_config: Dict[str, Any]):
         """Apply SELinux security context"""
         try:
-            # Set SELinux context for task execution
+
             context = "unconfined_u:unconfined_r:winlink_task_t:s0"
             subprocess.run(['runcon', context], check=True)
             env_config['selinux_context'] = context
@@ -355,13 +331,11 @@ class SecurityHardening:
         temp_dir = env_config['temp_dir']
         
         try:
-            # Ensure directory exists
+
             os.makedirs(temp_dir, exist_ok=True)
-            
-            # Set restrictive permissions (owner read/write only)
+
             os.chmod(temp_dir, 0o700)
-            
-            # On Linux, set up mount options if possible
+
             if self.is_linux and os.getuid() == 0:  # Root user
                 subprocess.run([
                     'mount', '-o', 'remount,noexec,nosuid,nodev', temp_dir
@@ -379,8 +353,7 @@ class SecurityHardening:
             return
         
         try:
-            # This would require Windows-specific implementation
-            # Using ctypes to call Windows APIs
+
             logger.info("Restricted token creation (Windows-specific implementation needed)")
             env_config['restricted_token'] = True
             
@@ -393,7 +366,7 @@ class SecurityHardening:
             return
         
         try:
-            # This would require Windows-specific implementation
+
             logger.info("Job object setup (Windows-specific implementation needed)")
             env_config['job_object'] = True
             
@@ -403,18 +376,14 @@ class SecurityHardening:
     def _apply_basic_restrictions(self, env_config: Dict[str, Any]):
         """Apply basic security restrictions using standard Python/system calls"""
         try:
-            # Set process resource limits
-            # Memory limit (virtual memory)
+
             memory_bytes = env_config['memory_limit_mb'] * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-            
-            # CPU time limit (5 minutes)
+
             resource.setrlimit(resource.RLIMIT_CPU, (300, 300))
-            
-            # File size limit (100MB max file)
+
             resource.setrlimit(resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))
-            
-            # Process limit (prevent fork bombs)
+
             resource.setrlimit(resource.RLIMIT_NPROC, (10, 10))
             
             env_config['restrictions_applied'].append('basic_rlimits')
@@ -426,12 +395,11 @@ class SecurityHardening:
     def cleanup_environment(self, env_config: Dict[str, Any]):
         """Clean up the secure execution environment"""
         try:
-            # Clean up temp directory
+
             temp_dir = env_config.get('temp_dir')
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
-            
-            # Clean up cgroups
+
             cgroup_name = env_config.get('cgroup_name')
             if cgroup_name:
                 self._cleanup_cgroups(cgroup_name)
@@ -449,7 +417,7 @@ class SecurityHardening:
                 if os.path.exists(cgroup_path):
                     os.rmdir(cgroup_path)
             else:
-                # Cleanup v1 cgroups
+
                 for subsystem in ['memory', 'cpu']:
                     cgroup_path = f"/sys/fs/cgroup/{subsystem}/{cgroup_name}"
                     if os.path.exists(cgroup_path):
@@ -474,14 +442,12 @@ class SecurityHardening:
                 for line in f:
                     if line.startswith('CapEff:'):
                         cap_hex = line.split()[1]
-                        # Convert hex to capability names
-                        # This is simplified - full implementation would map to capability names
+
                         return [f"cap_{cap_hex}"]
             return []
         except Exception:
             return []
 
-# Global security instance
 _security_instance = None
 
 def get_security_hardening() -> SecurityHardening:

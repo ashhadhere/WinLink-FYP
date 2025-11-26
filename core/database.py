@@ -43,7 +43,7 @@ class WinLinkDatabase:
         """Initialize database schema"""
         with self.lock:
             with self._get_connection() as conn:
-                # Tasks table
+
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS tasks (
                         id TEXT PRIMARY KEY,
@@ -64,8 +64,7 @@ class WinLinkDatabase:
                         priority INTEGER DEFAULT 0
                     )
                 ''')
-                
-                # Workers table
+
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS workers (
                         id TEXT PRIMARY KEY,
@@ -83,8 +82,7 @@ class WinLinkDatabase:
                         security_features TEXT
                     )
                 ''')
-                
-                # System logs table
+
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS system_logs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,8 +93,7 @@ class WinLinkDatabase:
                         extra_data TEXT
                     )
                 ''')
-                
-                # Resource usage table
+
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS resource_usage (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,8 +109,7 @@ class WinLinkDatabase:
                         FOREIGN KEY (worker_id) REFERENCES workers (id)
                     )
                 ''')
-                
-                # Performance metrics table
+
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS performance_metrics (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,8 +123,7 @@ class WinLinkDatabase:
                         FOREIGN KEY (task_id) REFERENCES tasks (id)
                     )
                 ''')
-                
-                # Create indexes for better performance
+
                 conn.execute('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)')
                 conn.execute('CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks (created_at)')
                 conn.execute('CREATE INDEX IF NOT EXISTS idx_tasks_worker_id ON tasks (worker_id)')
@@ -138,8 +133,7 @@ class WinLinkDatabase:
                 
                 conn.commit()
                 logger.info("Database schema initialized successfully")
-    
-    # ─── Task Management ───
+
     
     def save_task(self, task: Task) -> bool:
         """Save or update a task in the database"""
@@ -218,8 +212,7 @@ class WinLinkDatabase:
         try:
             with self._get_connection() as conn:
                 stats = {}
-                
-                # Basic counts
+
                 stats['total_tasks'] = conn.execute('SELECT COUNT(*) FROM tasks').fetchone()[0]
                 stats['completed_tasks'] = conn.execute(
                     'SELECT COUNT(*) FROM tasks WHERE status = ?', 
@@ -233,21 +226,18 @@ class WinLinkDatabase:
                     'SELECT COUNT(*) FROM tasks WHERE status = ?', 
                     (TaskStatus.RUNNING.value,)
                 ).fetchone()[0]
-                
-                # Success rate
+
                 if stats['total_tasks'] > 0:
                     stats['success_rate'] = stats['completed_tasks'] / (stats['completed_tasks'] + stats['failed_tasks'])
                 else:
                     stats['success_rate'] = 0.0
-                
-                # Average execution time
+
                 avg_time = conn.execute(
                     'SELECT AVG(execution_time) FROM tasks WHERE status = ? AND execution_time IS NOT NULL',
                     (TaskStatus.COMPLETED.value,)
                 ).fetchone()[0]
                 stats['avg_execution_time'] = float(avg_time) if avg_time else 0.0
-                
-                # Tasks by type
+
                 type_counts = conn.execute('''
                     SELECT type, COUNT(*) as count 
                     FROM tasks 
@@ -279,8 +269,7 @@ class WinLinkDatabase:
         task.started_at = row['started_at']
         task.completed_at = row['completed_at']
         task.progress = row['progress'] or 0
-        
-        # Additional attributes
+
         if hasattr(task, 'execution_time'):
             task.execution_time = row['execution_time']
         if hasattr(task, 'memory_used'):
@@ -289,8 +278,7 @@ class WinLinkDatabase:
             task.priority = row['priority'] or 0
         
         return task
-    
-    # ─── Worker Management ───
+
     
     def save_worker(self, worker_id: str, ip: str, port: int, status: str, 
                    capabilities: List[str] = None, security_features: List[str] = None) -> bool:
@@ -299,12 +287,11 @@ class WinLinkDatabase:
             with self.lock:
                 with self._get_connection() as conn:
                     now = time.time()
-                    
-                    # Check if worker exists
+
                     existing = conn.execute('SELECT id FROM workers WHERE id = ?', (worker_id,)).fetchone()
                     
                     if existing:
-                        # Update existing worker
+
                         conn.execute('''
                             UPDATE workers SET 
                                 ip = ?, port = ?, last_connected_at = ?, status = ?,
@@ -317,7 +304,7 @@ class WinLinkDatabase:
                             worker_id
                         ))
                     else:
-                        # Insert new worker
+
                         conn.execute('''
                             INSERT INTO workers (
                                 id, ip, port, first_connected_at, last_connected_at, 
@@ -376,8 +363,7 @@ class WinLinkDatabase:
         except Exception as e:
             logger.error(f"Failed to get workers: {e}")
             return []
-    
-    # ─── Resource Usage Tracking ───
+
     
     def save_resource_usage(self, worker_id: str, resource_data: Dict[str, Any]) -> bool:
         """Save resource usage snapshot"""
@@ -422,8 +408,7 @@ class WinLinkDatabase:
         except Exception as e:
             logger.error(f"Failed to get resource history for {worker_id}: {e}")
             return []
-    
-    # ─── System Logging ───
+
     
     def log_event(self, level: str, component: str, message: str, extra_data: Dict = None) -> bool:
         """Log system event"""
@@ -475,8 +460,7 @@ class WinLinkDatabase:
         except Exception as e:
             logger.error(f"Failed to get logs: {e}")
             return []
-    
-    # ─── Cleanup and Maintenance ───
+
     
     def cleanup_old_data(self, days_to_keep: int = 30) -> Dict[str, int]:
         """Clean up old data from database"""
@@ -487,21 +471,19 @@ class WinLinkDatabase:
             
             with self.lock:
                 with self._get_connection() as conn:
-                    # Clean up old completed/failed tasks
+
                     cursor = conn.execute('''
                         DELETE FROM tasks 
                         WHERE completed_at < ? AND status IN (?, ?)
                     ''', (cutoff_time, TaskStatus.COMPLETED.value, TaskStatus.FAILED.value))
                     cleanup_stats['tasks'] = cursor.rowcount
-                    
-                    # Clean up old logs
+
                     cursor = conn.execute(
                         'DELETE FROM system_logs WHERE timestamp < ?',
                         (cutoff_time,)
                     )
                     cleanup_stats['logs'] = cursor.rowcount
-                    
-                    # Clean up old resource data
+
                     cursor = conn.execute(
                         'DELETE FROM resource_usage WHERE timestamp < ?',
                         (cutoff_time,)
@@ -522,14 +504,12 @@ class WinLinkDatabase:
         try:
             with self._get_connection() as conn:
                 stats = {}
-                
-                # Table row counts
+
                 tables = ['tasks', 'workers', 'system_logs', 'resource_usage', 'performance_metrics']
                 for table in tables:
                     count = conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]
                     stats[f'{table}_count'] = count
-                
-                # Database file size
+
                 if os.path.exists(self.db_path):
                     stats['db_size_mb'] = os.path.getsize(self.db_path) / (1024 * 1024)
                 
@@ -538,7 +518,6 @@ class WinLinkDatabase:
             logger.error(f"Failed to get database stats: {e}")
             return {}
 
-# Global database instance
 _db_instance = None
 _db_lock = threading.Lock()
 

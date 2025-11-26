@@ -3,11 +3,10 @@ from typing import Optional
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtWidgets import QHeaderView, QSplitter, QPushButton, QComboBox, QListWidget
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QIcon
 
-# Fix module path for core & assets
 sys.path.append(os.path.abspath(os.path.join(__file__, "..", "..")))
 
-# Now import modules
 from assets.styles import STYLE_SHEET
 from core.task_manager import TaskManager, TASK_TEMPLATES, TaskStatus, TaskType
 from core.network import MasterNetwork, MessageType
@@ -17,16 +16,17 @@ class MasterUI(QtWidgets.QWidget):
         super().__init__()
         self.setObjectName("mainWindow")
         self.setWindowTitle("WinLink – Master PC")
-        
-        # Use frameless window with custom title bar
+
         self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         
-        self.setStyleSheet(STYLE_SHEET)
+        ROOT = os.path.abspath(os.path.join(__file__, "..", ".."))
+        icon_path = os.path.join(ROOT, "assets", "WinLink_logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
-        # Window stays maximized - no dragging variables needed
+        self.setStyleSheet(STYLE_SHEET)
 
-        # Core
         self.task_manager = TaskManager()
         self.network = MasterNetwork()
         self.worker_resources = {}
@@ -40,11 +40,9 @@ class MasterUI(QtWidgets.QWidget):
         self.network.register_handler(MessageType.ERROR, self.handle_worker_error)
         self.network.start()
 
-        # UI
         self.setup_ui()
         self.start_monitoring_thread()
-        
-        # Start discovery refresh timer
+
         self.discovery_timer = QTimer()
         self.discovery_timer.timeout.connect(self.refresh_discovered_workers)
         self.discovery_timer.start(2000)  # Refresh every 2 seconds
@@ -54,17 +52,12 @@ class MasterUI(QtWidgets.QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Custom Title Bar - hidden since we use system frame now
-        # self._create_title_bar()
-
-        # Content area
         content_widget = QtWidgets.QWidget()
         content_widget.setObjectName("contentArea")
         content_layout = QtWidgets.QVBoxLayout(content_widget)
         content_layout.setContentsMargins(12, 12, 12, 12)
         content_layout.setSpacing(10)
 
-        # Use splitter for responsive layout
         splitter = QSplitter(QtCore.Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(8)
@@ -77,7 +70,6 @@ class MasterUI(QtWidgets.QWidget):
         splitter.setSizes([400, 800])  # Initial sizes
         content_layout.addWidget(splitter)
 
-        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
     def _create_title_bar(self):
@@ -89,18 +81,15 @@ class MasterUI(QtWidgets.QWidget):
         title_layout = QtWidgets.QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(20, 0, 10, 0)
         title_layout.setSpacing(10)
-        
-        # App icon and title
+
         app_info_layout = QtWidgets.QHBoxLayout()
         app_info_layout.setSpacing(12)
-        
-        # App icon
+
         app_icon = QtWidgets.QLabel("🎯")
         app_icon.setObjectName("appIcon")
         app_icon.setFont(QtGui.QFont("Segoe UI Emoji", 16))
         app_info_layout.addWidget(app_icon)
-        
-        # Title
+
         title_label = QtWidgets.QLabel("WinLink - Master PC (Enhanced)")
         title_label.setObjectName("titleLabel")
         title_font = QtGui.QFont("Segoe UI", 11, QtGui.QFont.DemiBold)
@@ -109,12 +98,10 @@ class MasterUI(QtWidgets.QWidget):
         
         title_layout.addLayout(app_info_layout)
         title_layout.addStretch()
-        
-        # Window controls
+
         controls_layout = QtWidgets.QHBoxLayout()
         controls_layout.setSpacing(0)
-        
-        # Minimize button with proper height
+
         self.minimize_btn = QPushButton("-")
         self.minimize_btn.setFixedSize(45, 35)
         self.minimize_btn.clicked.connect(self.showMinimized)
@@ -136,8 +123,7 @@ class MasterUI(QtWidgets.QWidget):
             }
         """)
         controls_layout.addWidget(self.minimize_btn)
-        
-        # Close button with proper height
+
         self.close_btn = QPushButton("✕")
         self.close_btn.setFixedSize(45, 35)
         self.close_btn.clicked.connect(self.close)
@@ -159,12 +145,6 @@ class MasterUI(QtWidgets.QWidget):
         controls_layout.addWidget(self.close_btn)
         
         title_layout.addLayout(controls_layout)
-        
-        # Title bar is not draggable - window stays maximized
-
-    # Window stays maximized - no fullscreen toggle needed
-
-    # No dragging methods - window stays maximized
 
     def create_worker_panel(self):
         panel = QtWidgets.QFrame()
@@ -183,31 +163,25 @@ class MasterUI(QtWidgets.QWidget):
         hdr.setMargin(6)
         lay.addWidget(hdr)
 
-        # Add Worker
         grp = QtWidgets.QGroupBox("⚡ Add Worker", panel)
         g_l = QtWidgets.QVBoxLayout(grp)
         g_l.setSpacing(8)
         g_l.setContentsMargins(10, 18, 10, 10)
-        
-        # Discovered Workers Section
+
         disco_label = QtWidgets.QLabel("🔍 Select Workers:")
         disco_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #00f5a0; margin-bottom: 3px;")
         g_l.addWidget(disco_label)
-        
-        # Help text
+
         help_text = QtWidgets.QLabel("Click dropdown to select multiple workers • Auto-refreshes every 2s")
         help_text.setStyleSheet("font-size: 8pt; color: rgba(255, 255, 255, 0.5); margin-bottom: 5px;")
         g_l.addWidget(help_text)
-        
-        # Multi-select dropdown using QComboBox with checkable items
+
         self.discovered_combo = QComboBox()
         self.discovered_combo.setMinimumHeight(36)
-        
-        # Set a QStandardItemModel to support checkable items
+
         combo_model = QtGui.QStandardItemModel()
         self.discovered_combo.setModel(combo_model)
-        
-        # Set QListView for proper checkbox display
+
         list_view = QtWidgets.QListView()
         list_view.setStyleSheet("""
             QListView::item {
@@ -219,8 +193,7 @@ class MasterUI(QtWidgets.QWidget):
             }
         """)
         self.discovered_combo.setView(list_view)
-        
-        # Connect to model's dataChanged signal to update display text and button states
+
         combo_model.dataChanged.connect(self._on_combo_selection_changed)
         
         self.discovered_combo.setStyleSheet("""
@@ -265,8 +238,7 @@ class MasterUI(QtWidgets.QWidget):
         """)
         
         g_l.addWidget(self.discovered_combo)
-        
-        # Connect buttons
+
         connect_btns_layout = QtWidgets.QHBoxLayout()
         connect_btns_layout.setSpacing(6)
         
@@ -326,19 +298,16 @@ class MasterUI(QtWidgets.QWidget):
         connect_btns_layout.addWidget(self.connect_discovered_btn, 1)
         connect_btns_layout.addWidget(self.connect_all_btn, 1)
         g_l.addLayout(connect_btns_layout)
-        
-        # Separator
+
         sep = QtWidgets.QFrame()
         sep.setFrameShape(QtWidgets.QFrame.HLine)
         sep.setStyleSheet("background: rgba(255, 255, 255, 0.15); margin: 12px 0px 10px 0px; max-height: 1px;")
         g_l.addWidget(sep)
-        
-        # Manual Entry Section
+
         manual_label = QtWidgets.QLabel("✏️ Manual Entry:")
         manual_label.setStyleSheet("font-size: 9pt; font-weight: 600; color: #667eea; margin-bottom: 5px;")
         g_l.addWidget(manual_label)
-        
-        # IP and Port inputs
+
         manual_input_layout = QtWidgets.QHBoxLayout()
         manual_input_layout.setSpacing(6)
         
@@ -399,7 +368,6 @@ class MasterUI(QtWidgets.QWidget):
         g_l.addWidget(self.connect_btn)
         lay.addWidget(grp)
 
-        # Connected Workers
         wgrp = QtWidgets.QGroupBox("Connected Workers", panel)
         w_l = QtWidgets.QVBoxLayout(wgrp)
         w_l.setSpacing(6)
@@ -416,7 +384,6 @@ class MasterUI(QtWidgets.QWidget):
         w_l.addLayout(btn_h)
         lay.addWidget(wgrp)
 
-        # Worker Resources Display - Clean and readable
         rgrp = QtWidgets.QGroupBox("Live Worker Resources", panel)
         r_l = QtWidgets.QVBoxLayout(rgrp)
         r_l.setSpacing(6)
@@ -424,12 +391,12 @@ class MasterUI(QtWidgets.QWidget):
         self.resource_display = QtWidgets.QTextEdit()
         self.resource_display.setReadOnly(True)
         self.resource_display.setMinimumHeight(150)
-        # Readable font size
+
         font = self.resource_display.font()
         font.setPointSize(9)  # Comfortable font size
         font.setFamily("Consolas")  # Monospace font for alignment
         self.resource_display.setFont(font)
-        # Simple styling
+
         self.resource_display.setStyleSheet("""
             QTextEdit {
                 background-color: rgba(30, 30, 40, 0.8);
@@ -442,8 +409,7 @@ class MasterUI(QtWidgets.QWidget):
         """)
         self.resource_display.setPlainText("⏳ Waiting for worker resources...\n\nConnect a worker and resources will appear here.")
         r_l.addWidget(self.resource_display)
-        
-        # Add refresh button
+
         refresh_res_btn = QtWidgets.QPushButton("🔄 Refresh Resources")
         refresh_res_btn.clicked.connect(self.refresh_all_worker_resources)
         r_l.addWidget(refresh_res_btn)
@@ -468,12 +434,11 @@ class MasterUI(QtWidgets.QWidget):
         hdr.setMargin(6)
         lay.addWidget(hdr)
 
-        # Create Task
         grp = QtWidgets.QGroupBox("Create Task", panel)
         g_l = QtWidgets.QVBoxLayout(grp)
         g_l.setSpacing(6)
         g_l.setContentsMargins(8, 15, 8, 8)
-        # Add Task Type dropdown first
+
         self.task_type_combo = QtWidgets.QComboBox()
         self.task_type_combo.addItems([t.name for t in TaskType])
         self.task_type_combo.currentTextChanged.connect(self.on_task_type_changed)
@@ -485,7 +450,7 @@ class MasterUI(QtWidgets.QWidget):
         self.template_combo.currentTextChanged.connect(self.on_template_changed)
         g_l.addWidget(self.template_combo)
         self.task_description = QtWidgets.QLabel(); self.task_description.setWordWrap(True)
-        # Enhance font for task description
+
         desc_font = self.task_description.font()
         desc_font.setPointSize(9)
         desc_font.setBold(True)
@@ -501,20 +466,20 @@ class MasterUI(QtWidgets.QWidget):
         """)
         g_l.addWidget(self.task_description)
         self.task_code_edit = QtWidgets.QTextEdit(); self.task_code_edit.setMaximumHeight(120)
-        # Enhance font for task code editing
+
         code_font = self.task_code_edit.font()
         code_font.setPointSize(9)
         code_font.setFamily("Consolas")
         self.task_code_edit.setFont(code_font)
         g_l.addWidget(self.task_code_edit)
         self.task_data_edit = QtWidgets.QTextEdit(); self.task_data_edit.setMaximumHeight(80)
-        # Enhance font for task data editing
+
         data_font = self.task_data_edit.font()
         data_font.setPointSize(9)
         data_font.setFamily("Consolas")
         self.task_data_edit.setFont(data_font)
         g_l.addWidget(self.task_data_edit)
-        # Apply custom styling to code and data editors for better visibility
+
         editor_style = """
             QTextEdit {
                 background-color: rgba(30, 30, 40, 0.9);
@@ -537,29 +502,24 @@ class MasterUI(QtWidgets.QWidget):
         self.submit_task_btn.clicked.connect(self.submit_task)
         g_l.addWidget(self.submit_task_btn)
         lay.addWidget(grp)
-        
-        # Initialize templates after all widgets are created
+
         self.on_task_type_changed()
 
-        # Task Queue
         tgrp = QtWidgets.QGroupBox("📋 Task Queue", panel)
         t_l = QtWidgets.QVBoxLayout(tgrp)
         t_l.setSpacing(8)
         t_l.setContentsMargins(10, 18, 10, 10)
-        
-        # Tasks table with improved styling
+
         self.tasks_table = QtWidgets.QTableWidget(0, 7)
         self.tasks_table.setHorizontalHeaderLabels(["ID", "Type", "Status", "Worker", "Progress", "Result", "Output"])
-        
-        # Column widths
+
         self.tasks_table.setColumnWidth(0, 80)   # ID
         self.tasks_table.setColumnWidth(1, 100)  # Type
         self.tasks_table.setColumnWidth(2, 90)   # Status
         self.tasks_table.setColumnWidth(3, 130)  # Worker
         self.tasks_table.setColumnWidth(4, 100)  # Progress
         self.tasks_table.setColumnWidth(5, 150)  # Result
-        
-        # Table properties
+
         self.tasks_table.setAlternatingRowColors(True)
         self.tasks_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.tasks_table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -568,8 +528,7 @@ class MasterUI(QtWidgets.QWidget):
         self.tasks_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.tasks_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tasks_table.setMinimumHeight(200)
-        
-        # Header styling
+
         header = self.tasks_table.horizontalHeader()
         header.setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         header.setSectionResizeMode(QHeaderView.Interactive)
@@ -580,12 +539,10 @@ class MasterUI(QtWidgets.QWidget):
         hf.setPointSize(9)
         header.setFont(hf)
         header.setMinimumHeight(32)
-        
-        # Vertical header
+
         self.tasks_table.verticalHeader().setVisible(False)
         self.tasks_table.verticalHeader().setDefaultSectionSize(40)
-        
-        # Table styling
+
         self.tasks_table.setStyleSheet("""
             QTableWidget {
                 background: rgba(15, 20, 30, 0.95);
@@ -621,12 +578,10 @@ class MasterUI(QtWidgets.QWidget):
         """)
         
         t_l.addWidget(self.tasks_table)
-        
-        # Action buttons
+
         btn_layout = QtWidgets.QHBoxLayout()
         btn_layout.setSpacing(8)
-        
-        # Refresh button
+
         refresh_btn = QtWidgets.QPushButton("🔄 Refresh")
         refresh_btn.setMinimumHeight(34)
         refresh_btn.setFixedWidth(110)
@@ -648,8 +603,7 @@ class MasterUI(QtWidgets.QWidget):
                 background: rgba(102, 126, 234, 0.6);
             }
         """)
-        
-        # Clear completed button
+
         clear_btn = QtWidgets.QPushButton("🗑️ Clear Completed")
         clear_btn.setObjectName("stopBtn")
         clear_btn.setMinimumHeight(34)
@@ -692,16 +646,13 @@ class MasterUI(QtWidgets.QWidget):
                 time.sleep(10)
         threading.Thread(target=monitor, daemon=True).start()
 
-    # ─── Event Handlers ───
-
     def on_worker_selection_changed(self):
         self.disconnect_btn.setEnabled(bool(self.workers_list.selectedItems()))
     
     def refresh_discovered_workers(self):
         """Update the dropdown with newly discovered workers"""
         discovered = self.network.get_discovered_workers()
-        
-        # Store currently checked items
+
         checked_workers = []
         for i in range(self.discovered_combo.count()):
             item = self.discovered_combo.model().item(i)
@@ -712,8 +663,7 @@ class MasterUI(QtWidgets.QWidget):
                         checked_workers.append(json.loads(worker_info_json))
                     except (json.JSONDecodeError, TypeError):
                         pass
-        
-        # Clear and repopulate
+
         model = self.discovered_combo.model()
         model.clear()
         
@@ -729,14 +679,12 @@ class MasterUI(QtWidgets.QWidget):
         self.discovered_combo.setEnabled(True)
         selected_count = 0
         has_unconnected = False
-        
-        # Add discovered workers as checkable items
+
         for worker_id, info in discovered.items():
             hostname = info.get('hostname', 'Unknown')
             ip = info.get('ip', '')
             port = info.get('port', '')
-            
-            # Check if already connected
+
             connected = worker_id in self.network.get_connected_workers()
             
             if connected:
@@ -744,41 +692,35 @@ class MasterUI(QtWidgets.QWidget):
             else:
                 display_text = f"🖥️ {hostname} ({ip}:{port})"
                 has_unconnected = True
-            
-            # Create checkable item
+
             item = QtGui.QStandardItem(display_text)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
             item.setCheckable(True)
-            
-            # Store worker info as JSON string
+
             item.setData(json.dumps(info), Qt.UserRole)
-            
-            # Restore check state if it was previously checked
+
             if info in checked_workers:
                 item.setCheckState(QtCore.Qt.Checked)
                 selected_count += 1
             else:
                 item.setCheckState(QtCore.Qt.Unchecked)
-            
-            # Disable if already connected
+
             if connected:
                 item.setEnabled(False)
             
             model.appendRow(item)
-        
-        # Update combo box text to show selection count
+
         self._update_combo_text()
-        
-        # Enable/disable buttons based on actual checked state
+
         self._update_connect_button_states()
         self.connect_all_btn.setEnabled(has_unconnected)
     
     def _on_combo_selection_changed(self):
         """Handle when checkbox states change in the combo box"""
         print("[MASTER] _on_combo_selection_changed called")
-        # Update display text
+
         self._update_combo_text()
-        # Update button states based on current selections
+
         self._update_connect_button_states()
     
     def _update_connect_button_states(self):
@@ -790,8 +732,7 @@ class MasterUI(QtWidgets.QWidget):
                 checked_count += 1
         
         print(f"[MASTER] _update_connect_button_states: {checked_count} items checked")
-        
-        # Enable "Connect Selected" button if at least one worker is checked
+
         self.connect_discovered_btn.setEnabled(checked_count > 0)
         print(f"[MASTER] Connect button enabled: {checked_count > 0}")
     
@@ -806,21 +747,20 @@ class MasterUI(QtWidgets.QWidget):
         if checked_count == 0:
             self.discovered_combo.setCurrentIndex(0)
         elif checked_count == 1:
-            # Find the checked item and show its text
+
             for i in range(self.discovered_combo.count()):
                 item = self.discovered_combo.model().item(i)
                 if item and item.checkState() == QtCore.Qt.Checked:
                     self.discovered_combo.setCurrentIndex(i)
                     break
         else:
-            # Show count of selected workers
+
             self.discovered_combo.setCurrentText(f"✅ {checked_count} workers selected")
     
     def connect_from_list(self):
         """Connect to selected workers from discovered dropdown"""
         print("[MASTER] connect_from_list called")
-        
-        # Get all checked items from combo box
+
         selected_workers = []
         model = self.discovered_combo.model()
         
@@ -858,8 +798,7 @@ class MasterUI(QtWidgets.QWidget):
             port = worker_info.get('port')
             hostname = worker_info.get('hostname', 'Unknown')
             worker_id = f"{ip}:{port}"
-            
-            # Check if already connected
+
             if worker_id in self.network.get_connected_workers():
                 already_connected += 1
                 continue
@@ -867,12 +806,11 @@ class MasterUI(QtWidgets.QWidget):
             connected = self.network.connect_to_worker(worker_id, ip, int(port))
             if connected:
                 success_count += 1
-                # Request resources
+
                 QtCore.QTimer.singleShot(300, lambda wid=worker_id: self.network.request_resources_from_worker(wid))
             else:
                 fail_count += 1
-        
-        # Show summary
+
         msg_parts = []
         if success_count > 0:
             msg_parts.append(f"✅ Connected: {success_count}")
@@ -900,7 +838,7 @@ class MasterUI(QtWidgets.QWidget):
         already_connected = 0
         
         for worker_id, info in discovered.items():
-            # Check if already connected
+
             if worker_id in self.network.get_connected_workers():
                 already_connected += 1
                 continue
@@ -911,12 +849,11 @@ class MasterUI(QtWidgets.QWidget):
             connected = self.network.connect_to_worker(worker_id, ip, int(port))
             if connected:
                 success_count += 1
-                # Request resources
+
                 QtCore.QTimer.singleShot(300, lambda wid=worker_id: self.network.request_resources_from_worker(wid))
             else:
                 fail_count += 1
-        
-        # Show summary
+
         msg_parts = []
         if success_count > 0:
             msg_parts.append(f"✅ Connected: {success_count}")
@@ -939,14 +876,12 @@ class MasterUI(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, "Missing Info", "Enter both IP and Port")
             return
         worker_id = f"{ip}:{port}"
-        
-        # Check if already connected
+
         if worker_id in self.network.get_connected_workers():
             QtWidgets.QMessageBox.information(self, "Already Connected", 
                 f"Already connected to {worker_id}")
             return
-        
-        # Show connecting message
+
         self.resource_display.setPlainText(f"🔄 Connecting to {worker_id}...\n\nRetrying up to 3 times if needed...")
         QtWidgets.QApplication.processEvents()
         
@@ -965,7 +900,7 @@ class MasterUI(QtWidgets.QWidget):
             self.resource_display.setPlainText("❌ Connection failed. See error message.")
         else:
             QtWidgets.QMessageBox.information(self, "Connected", f"✅ Connected to {worker_id}")
-            # Request resources immediately and repeatedly to ensure we get data
+
             self.resource_display.setPlainText(f"✅ Connected to {worker_id}\n\n⏳ Waiting for resource data...")
             QtCore.QTimer.singleShot(300, lambda: self.network.request_resources_from_worker(worker_id))
             QtCore.QTimer.singleShot(1000, lambda: self.network.request_resources_from_worker(worker_id))
@@ -980,21 +915,47 @@ class MasterUI(QtWidgets.QWidget):
 
     def disconnect_selected_worker(self):
         sel = self.workers_list.currentItem()
-        if sel:
-            # Get IP:Port from list item
-            ip_port = sel.text()
-            # Find the worker_id that matches this IP:Port
-            worker_id = None
-            for wid, info in self.network.get_connected_workers().items():
-                if f"{info['ip']}:{info['port']}" == ip_port:
-                    worker_id = wid
-                    break
-            if worker_id:
-                self.network.disconnect_worker(worker_id)
-                # Remove from resources
-                with self.worker_resources_lock:
-                    self.worker_resources.pop(worker_id, None)
+        if not sel:
+            QtWidgets.QMessageBox.warning(self, "No Selection", "Please select a worker to disconnect")
+            return
+
+        ip_port = sel.text()
+
+        worker_id = None
+        for wid, info in self.network.get_connected_workers().items():
+            if f"{info['ip']}:{info['port']}" == ip_port:
+                worker_id = wid
+                break
+        
+        if not worker_id:
+            QtWidgets.QMessageBox.warning(self, "Worker Not Found", 
+                f"Could not find worker {ip_port}")
+            return
+
+        reply = QtWidgets.QMessageBox.question(
+            self, 
+            "Confirm Disconnect",
+            f"Disconnect from worker {ip_port}?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No
+        )
+        
+        if reply == QtWidgets.QMessageBox.Yes:
+
+            self.network.disconnect_worker(worker_id)
+            print(f"[MASTER] 🔌 Disconnected from worker: {ip_port}")
+
+            with self.worker_resources_lock:
+                self.worker_resources.pop(worker_id, None)
+
             self.refresh_workers_async()
+            self.refresh_discovered_workers()
+            self.update_resource_display()
+
+            QtWidgets.QMessageBox.information(self, "Disconnected", 
+                f"Successfully disconnected from {ip_port}")
+
+            self.disconnect_btn.setEnabled(False)
 
     def on_task_type_changed(self):
         """Update template dropdown based on selected task type"""
@@ -1003,18 +964,15 @@ class MasterUI(QtWidgets.QWidget):
             selected_type = TaskType[selected_type_name]
         except KeyError:
             return
-        
-        # Filter templates by task type
+
         self.template_combo.clear()
         for template_key, template_data in TASK_TEMPLATES.items():
             if template_data.get("type") == selected_type:
                 self.template_combo.addItem(template_key)
-        
-        # If no templates found, add a custom option
+
         if self.template_combo.count() == 0:
             self.template_combo.addItem("Custom")
-        
-        # Trigger template change to load first template
+
         if self.template_combo.count() > 0:
             self.on_template_changed(self.template_combo.currentText())
     
@@ -1083,7 +1041,6 @@ class MasterUI(QtWidgets.QWidget):
         if not target_worker:
             return None
 
-        # Get task info to include name
         task = self.task_manager.get_task(task_id)
         task_name = task.type.name if task else "Unknown Task"
         
@@ -1104,7 +1061,7 @@ class MasterUI(QtWidgets.QWidget):
         resources = self._get_worker_resources_snapshot()
         
         if not resources:
-            # No resource data available, use round-robin
+
             return list(workers.keys())[0] if workers else None
         
         best_worker = None
@@ -1114,20 +1071,16 @@ class MasterUI(QtWidgets.QWidget):
         
         for worker_id in workers.keys():
             stats = resources.get(worker_id, {})
-            
-            # Get resource metrics (higher is better)
+
             cpu_available = 100 - stats.get('cpu_percent', 100)  # Available CPU %
             mem_available = stats.get('memory_available_mb', 0) or 0  # Available memory MB
             disk_free = stats.get('disk_free_gb', 0) or 0  # Free disk GB
-            
-            # Get active tasks count (lower is better)
+
             active_tasks = 0
             for task_id, task in self.task_manager.tasks.items():
                 if task.worker_id == worker_id and task.status.value in ['pending', 'running']:
                     active_tasks += 1
-            
-            # Calculate composite score
-            # Weights: CPU (30%), Memory (40%), Active Tasks (20%), Disk (10%)
+
             cpu_score = cpu_available * 0.3
             mem_score = min(mem_available / 1024, 100) * 0.4  # Normalize to 0-100 scale
             task_score = max(0, 100 - (active_tasks * 20)) * 0.2  # Penalty for each task
@@ -1146,7 +1099,7 @@ class MasterUI(QtWidgets.QWidget):
         if best_worker:
             print(f"[MASTER] ✅ Selected worker: {best_worker[:15]}... (score: {best_score:.1f})")
         else:
-            # Fallback to first worker if no resource data
+
             best_worker = list(workers.keys())[0] if workers else None
             print(f"[MASTER] ⚠️ Using fallback worker selection: {best_worker[:15] if best_worker else 'None'}...")
         
@@ -1156,26 +1109,22 @@ class MasterUI(QtWidgets.QWidget):
         tasks = sorted(self.task_manager.get_all_tasks(), key=lambda t: t.created_at, reverse=True)
         self.tasks_table.setRowCount(len(tasks))
         for row, t in enumerate(tasks):
-            # ID column
+
             id_item = QtWidgets.QTableWidgetItem(t.id[:8])
             self.tasks_table.setItem(row, 0, id_item)
-            
-            # Type column
+
             type_item = QtWidgets.QTableWidgetItem(t.type.name)
             self.tasks_table.setItem(row, 1, type_item)
-            
-            # Status column
+
             status_item = QtWidgets.QTableWidgetItem(t.status.name)
             self.tasks_table.setItem(row, 2, status_item)
-            
-            # Worker column - show only IP
+
             worker_text = ""
             if t.worker_id:
                 worker_text = t.worker_id.split(":")[0] if ":" in t.worker_id else t.worker_id
             worker_item = QtWidgets.QTableWidgetItem(worker_text)
             self.tasks_table.setItem(row, 3, worker_item)
-            
-            # Progress column - use QProgressBar widget for clarity
+
             progress_widget = QtWidgets.QProgressBar()
             try:
                 prog_val = int(getattr(t, 'progress', 0) or 0)
@@ -1187,12 +1136,11 @@ class MasterUI(QtWidgets.QWidget):
             progress_widget.setFormat(f"{progress_widget.value()}%")
             progress_widget.setAlignment(QtCore.Qt.AlignCenter)
             self.tasks_table.setCellWidget(row, 4, progress_widget)
-            
-            # Result column - show formatted summary (one line, readable)
+
             result_text = ""
             if t.result is not None:
                 if isinstance(t.result, dict):
-                    # Create a readable summary
+
                     result_parts = []
                     for key, val in list(t.result.items())[:3]:  # Show first 3 items
                         if isinstance(val, (int, float)):
@@ -1219,15 +1167,14 @@ class MasterUI(QtWidgets.QWidget):
             result_item = QtWidgets.QTableWidgetItem(result_text)
             result_item.setToolTip(result_text)  # Show full text on hover
             self.tasks_table.setItem(row, 5, result_item)
-            
-            # Output column - show full formatted output with proper wrapping
+
             output_text = ""
             if hasattr(t, 'output') and t.output:
                 output_text = str(t.output)
             elif t.error:
                 output_text = f"ERROR:\n{t.error}"
             elif t.result is not None:
-                # Format result nicely for output
+
                 if isinstance(t.result, dict):
                     output_lines = []
                     for key, val in t.result.items():
@@ -1245,11 +1192,10 @@ class MasterUI(QtWidgets.QWidget):
             
             output_item = QtWidgets.QTableWidgetItem(output_text)
             output_item.setToolTip(output_text)  # Show full text on hover
-            # Enable word wrap for output column
+
             output_item.setTextAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
             self.tasks_table.setItem(row, 6, output_item)
-            
-            # Color status cell for quick scanning
+
             status_item = self.tasks_table.item(row, 2)
             if status_item:
                 st = status_item.text().upper()
@@ -1266,7 +1212,6 @@ class MasterUI(QtWidgets.QWidget):
                 except Exception:
                     pass
 
-            # Set row height to accommodate wrapped text
             lines = output_text.count('\n') + 1
             estimated = max(40, min(300, lines * 18))
             self.tasks_table.setRowHeight(row, estimated)
@@ -1277,7 +1222,7 @@ class MasterUI(QtWidgets.QWidget):
     def handle_progress_update(self, worker_id, data):
         task_id = data.get("task_id")
         progress = data.get("progress", 0)
-        # Log significant progress milestones
+
         if progress in [0, 25, 50, 75, 100]:
             print(f"[MASTER] ⏳ Task {task_id[:8] if task_id else 'unknown'}... progress: {progress}%")
         self.task_manager.update_task_progress(task_id, progress)
@@ -1290,15 +1235,13 @@ class MasterUI(QtWidgets.QWidget):
         worker_short = worker_id[:20] + "..." if len(worker_id) > 20 else worker_id
         print(f"[MASTER] 📥 Received result from worker {worker_short}")
         print(f"[MASTER] 📊 VERIFICATION: Task {task_id[:8] if task_id else 'unknown'}... was executed on worker, NOT on master")
-        
-        # Log task completion
+
         if result_payload.get("success"):
             print(f"[MASTER] ✅ Task {task_id[:8] if task_id else 'unknown'}... completed successfully")
         else:
             error = result_payload.get("error", "Unknown error")
             print(f"[MASTER] ❌ Task {task_id[:8] if task_id else 'unknown'}... failed: {error[:50]}")
-        
-        # Store full output including stdout/stderr
+
         task = self.task_manager.get_task(task_id)
         if task:
             output_parts = []
@@ -1318,17 +1261,14 @@ class MasterUI(QtWidgets.QWidget):
         """Handle incoming resource data from workers"""
         with self.worker_resources_lock:
             self.worker_resources[worker_id] = data.copy()
-        
-        # Schedule UI update on Qt main thread
+
         QtCore.QTimer.singleShot(0, self.update_resource_display)
     
     def update_resource_display(self):
         """Update the resource display with current worker data"""
-        
-        # Get snapshot immediately
+
         snapshot = self._get_worker_resources_snapshot()
-        
-        # Check if we have data
+
         if not snapshot:
             connected_workers = self.network.get_connected_workers()
             if not connected_workers:
@@ -1340,8 +1280,7 @@ class MasterUI(QtWidgets.QWidget):
                     f"✅ Connected to {len(connected_workers)} worker(s)\n\n⏳ Loading resource data..."
                 )
             return
-        
-        # Build display text
+
         output = []
         output.append(f"📊 LIVE WORKER RESOURCES - {len(snapshot)} Connected")
         output.append(f"🕐 Updated: {time.strftime('%H:%M:%S')}")
@@ -1349,10 +1288,9 @@ class MasterUI(QtWidgets.QWidget):
         output.append("")
         
         for wid, stats in snapshot.items():
-            # Extract worker IP
+
             worker_ip = wid.split(":")[0] if ":" in wid else wid
-            
-            # Get stats
+
             cpu = stats.get("cpu_percent", 0.0)
             mem_percent = stats.get("memory_percent", 0.0)
             mem_total_mb = stats.get("memory_total_mb", 0.0)
@@ -1362,18 +1300,15 @@ class MasterUI(QtWidgets.QWidget):
             disk_free_gb = stats.get("disk_free_gb", 0.0)
             battery = stats.get("battery_percent")
             plugged = stats.get("battery_plugged")
-            
-            # Status indicator
+
             def status(val):
                 return "🟢" if val < 50 else "🟡" if val < 75 else "🔴"
             
             output.append(f"🖥️  WORKER: {worker_ip}")
             output.append("-" * 50)
-            
-            # CPU
+
             output.append(f"{status(cpu)} CPU Usage:          {cpu:5.1f}%")
-            
-            # Memory - HIGHLIGHT UNUTILIZED RAM
+
             mem_total_gb = mem_total_mb / 1024
             mem_used_gb = mem_used_mb / 1024
             mem_avail_gb = mem_avail_mb / 1024
@@ -1381,12 +1316,10 @@ class MasterUI(QtWidgets.QWidget):
             output.append(f"   • Total RAM:        {mem_total_gb:6.2f} GB")
             output.append(f"   • Used RAM:         {mem_used_gb:6.2f} GB")
             output.append(f"   💚 UNUTILIZED RAM:  {mem_avail_gb:6.2f} GB ⭐")
-            
-            # Disk
+
             output.append(f"{status(disk_percent)} Disk Usage:         {disk_percent:5.1f}%")
             output.append(f"   • Free Space:       {disk_free_gb:6.1f} GB")
-            
-            # Battery
+
             if battery is not None:
                 icon = "🔌" if plugged else "🔋"
                 status_text = "Charging" if plugged else "On Battery"
@@ -1397,8 +1330,7 @@ class MasterUI(QtWidgets.QWidget):
             output.append("")
         
         final_text = "\n".join(output)
-        
-        # Update display (we're already on Qt main thread)
+
         self.resource_display.setPlainText(final_text)
 
     def handle_worker_ready(self, worker_id, data):
@@ -1437,8 +1369,7 @@ class MasterUI(QtWidgets.QWidget):
         if not workers:
             self.resource_display.setPlainText("⚠️  No workers connected.\n\nPlease connect a worker first.")
             return
-        
-        # Request from all workers
+
         for worker_id in workers.keys():
             self.network.request_resources_from_worker(worker_id)
 
@@ -1455,17 +1386,16 @@ class MasterUI(QtWidgets.QWidget):
         """Handle window close event - cleanup resources"""
         try:
             self.monitoring_active = False
-            # Stop discovery timer
+
             if hasattr(self, 'discovery_timer'):
                 self.discovery_timer.stop()
-            # Give monitoring thread a moment to stop
+
             time.sleep(0.1)
             self.network.stop()
         except Exception as ex:
             print(f"Error during cleanup: {ex}")
         finally:
             super().closeEvent(event)
-
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

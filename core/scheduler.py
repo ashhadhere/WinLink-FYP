@@ -45,7 +45,7 @@ class WorkerCapacity:
     
     def calculate_load_score(self) -> float:
         """Calculate overall load score (lower is better)"""
-        # Weighted scoring based on different metrics
+
         cpu_weight = 0.3
         memory_weight = 0.25
         task_weight = 0.25
@@ -62,8 +62,7 @@ class WorkerCapacity:
             task_score * task_weight +
             response_score * response_weight
         )
-        
-        # Adjust for success rate (penalize unreliable workers)
+
         reliability_factor = max(0.1, self.success_rate)
         
         return load_score / reliability_factor
@@ -72,16 +71,13 @@ class WorkerCapacity:
         """Check if worker can accept a new task"""
         if self.current_tasks >= self.max_concurrent_tasks:
             return False
-        
-        # Check if worker is responsive
+
         if time.time() - self.last_heartbeat > 300:  # 5 minutes
             return False
-        
-        # Check resource availability
+
         if self.cpu_percent > 90 or self.memory_percent > 90:
             return False
-        
-        # Check memory requirements
+
         if task_requirements:
             required_memory = task_requirements.get('memory_mb', 512)
             if self.memory_available_mb < required_memory:
@@ -107,8 +103,7 @@ class LoadBalancer:
         self.workers: Dict[str, WorkerCapacity] = {}
         self.lock = threading.Lock()
         self.db = get_database()
-        
-        # Load balancing strategies
+
         self.strategies = {
             'round_robin': self._round_robin_strategy,
             'least_loaded': self._least_loaded_strategy,
@@ -133,8 +128,7 @@ class LoadBalancer:
             worker.last_heartbeat = time.time()
             worker.capabilities = worker_info.get('capabilities', [])
             worker.security_features = worker_info.get('security_features', [])
-            
-            # Update performance metrics
+
             self._update_worker_performance(worker_id)
             
             logger.debug(f"Worker {worker_id} registered/updated")
@@ -149,20 +143,18 @@ class LoadBalancer:
     def _update_worker_performance(self, worker_id: str):
         """Update worker performance metrics from database"""
         try:
-            # Get recent task completion stats
+
             recent_tasks = self.db.get_tasks(worker_id=worker_id, limit=20)
             
             if recent_tasks:
                 completed_tasks = [t for t in recent_tasks if t.status == TaskStatus.COMPLETED]
                 failed_tasks = [t for t in recent_tasks if t.status == TaskStatus.FAILED]
-                
-                # Calculate success rate
+
                 total_completed = len(completed_tasks) + len(failed_tasks)
                 if total_completed > 0:
                     success_rate = len(completed_tasks) / total_completed
                     self.workers[worker_id].success_rate = success_rate
-                
-                # Calculate average task time
+
                 if completed_tasks:
                     exec_times = []
                     for task in completed_tasks:
@@ -171,8 +163,7 @@ class LoadBalancer:
                     
                     if exec_times:
                         self.workers[worker_id].avg_task_time = sum(exec_times) / len(exec_times)
-                
-                # Calculate performance score
+
                 worker = self.workers[worker_id]
                 performance_factors = [
                     worker.success_rate,  # Reliability
@@ -200,7 +191,7 @@ class LoadBalancer:
             selected_worker = strategy_func(available_workers, task_requirements)
             
             if selected_worker:
-                # Update worker task count
+
                 self.workers[selected_worker].current_tasks += 1
                 logger.debug(f"Selected worker {selected_worker} using {self.current_strategy} strategy")
             
@@ -229,8 +220,7 @@ class LoadBalancer:
         """Select worker based on performance score and current load"""
         if not workers:
             return None
-        
-        # Score based on performance and inverse load
+
         def score_worker(worker):
             load_score = worker.calculate_load_score()
             performance_bonus = worker.performance_score * 0.3
@@ -246,18 +236,15 @@ class LoadBalancer:
             return None
         
         required_capabilities = task_requirements.get('capabilities', []) if task_requirements else []
-        
-        # Filter workers by capability requirements
+
         capable_workers = []
         for worker in workers:
             if all(cap in worker.capabilities for cap in required_capabilities):
                 capable_workers.append(worker)
-        
-        # Fall back to all workers if none match capabilities
+
         if not capable_workers:
             capable_workers = workers
-        
-        # Use performance-based selection on capable workers
+
         return self._performance_based_strategy(capable_workers, task_requirements)
     
     def task_completed(self, worker_id: str, success: bool = True):
@@ -265,8 +252,7 @@ class LoadBalancer:
         with self.lock:
             if worker_id in self.workers:
                 self.workers[worker_id].current_tasks = max(0, self.workers[worker_id].current_tasks - 1)
-                
-                # Update success rate (exponential moving average)
+
                 alpha = 0.1  # Learning rate
                 current_rate = self.workers[worker_id].success_rate
                 new_success = 1.0 if success else 0.0
@@ -304,8 +290,7 @@ class AdvancedTaskScheduler:
         self.running = False
         self.scheduler_thread = None
         self.db = get_database()
-        
-        # Scheduling parameters
+
         self.max_retries = 3
         self.retry_delay_base = 5.0  # seconds
         self.scheduler_interval = 1.0  # seconds
@@ -341,8 +326,7 @@ class AdvancedTaskScheduler:
             with self.lock:
                 heapq.heappush(self.task_queue, priority_task)
                 self.scheduled_tasks[task.id] = priority_task
-            
-            # Log scheduling event
+
             self.db.log_event(
                 'INFO', 'scheduler',
                 f'Task {task.id} scheduled with priority {priority.name}',
@@ -365,8 +349,7 @@ class AdvancedTaskScheduler:
                     priority_task.task.status = TaskStatus.FAILED
                     priority_task.task.error = "Task cancelled by user"
                     del self.scheduled_tasks[task_id]
-                    
-                    # Save to database
+
                     self.db.save_task(priority_task.task)
                     
                     logger.info(f"Task {task_id} cancelled")
@@ -396,34 +379,28 @@ class AdvancedTaskScheduler:
             
             while self.task_queue:
                 priority_task = heapq.heappop(self.task_queue)
-                
-                # Skip if task was cancelled
+
                 if priority_task.task.id not in self.scheduled_tasks:
                     continue
-                
-                # Try to assign to a worker
+
                 selected_worker = self.load_balancer.select_worker(priority_task.requirements)
                 
                 if selected_worker:
-                    # Assign task to worker
+
                     priority_task.task.worker_id = selected_worker
                     priority_task.task.status = TaskStatus.RUNNING
                     priority_task.task.started_at = time.time()
-                    
-                    # Remove from scheduled tasks
+
                     del self.scheduled_tasks[priority_task.task.id]
-                    
-                    # Save to database
+
                     self.db.save_task(priority_task.task)
-                    
-                    # Notify assignment (this would be handled by the network layer)
+
                     logger.info(f"Task {priority_task.task.id} assigned to worker {selected_worker}")
                     
                 else:
-                    # No workers available, put back in queue
+
                     processed_tasks.append(priority_task)
-            
-            # Put unprocessed tasks back in queue
+
             for task in processed_tasks:
                 heapq.heappush(self.task_queue, task)
     
@@ -434,8 +411,7 @@ class AdvancedTaskScheduler:
     def task_completed(self, task_id: str, worker_id: str, success: bool = True):
         """Notify scheduler of task completion"""
         self.load_balancer.task_completed(worker_id, success)
-        
-        # Log completion
+
         self.db.log_event(
             'INFO', 'scheduler',
             f'Task {task_id} completed on worker {worker_id}',
@@ -470,7 +446,6 @@ class AdvancedTaskScheduler:
             'uptime': time.time() if self.running else 0
         }
 
-# Global scheduler instance
 _scheduler_instance = None
 _scheduler_lock = threading.Lock()
 

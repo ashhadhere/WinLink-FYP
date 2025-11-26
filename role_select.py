@@ -1,14 +1,15 @@
 import sys
+import os
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QGraphicsDropShadowEffect
 )
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QIcon, QPixmap
 from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize
 from master.master_ui import MasterUI
 from worker.worker_ui import WorkerUI
 from assets.styles import STYLE_SHEET
-
+import os
 
 class RoleCard(QFrame):
     def __init__(self, role, title, description, icon, features=None, parent=None):
@@ -18,8 +19,7 @@ class RoleCard(QFrame):
         self.setFixedSize(450, 420)
         self.setCursor(Qt.PointingHandCursor)
         self.role = role
-        
-        # Role-specific styling
+
         if role == 'master':
             self.card_accent = '#00ffe0'
             border_color = 'rgba(0, 255, 224, 0.3)'
@@ -52,11 +52,9 @@ class RoleCard(QFrame):
         layout.setSpacing(5)
         layout.setAlignment(Qt.AlignTop)
 
-        # Header section
         header_layout = QVBoxLayout()
         header_layout.setSpacing(5)
 
-        # Icon with proper size and visibility
         self.icon_lbl = QLabel(icon)
         self.icon_lbl.setAlignment(Qt.AlignCenter)
         self.icon_lbl.setStyleSheet("""
@@ -66,7 +64,6 @@ class RoleCard(QFrame):
         """)
         header_layout.addWidget(self.icon_lbl, alignment=Qt.AlignCenter)
 
-        # Title with proper styling
         self.title_lbl = QLabel(title)
         self.title_lbl.setAlignment(Qt.AlignCenter)
         self.title_lbl.setStyleSheet(f"""
@@ -77,7 +74,6 @@ class RoleCard(QFrame):
         """)
         header_layout.addWidget(self.title_lbl)
 
-        # Description with better visibility
         self.desc_lbl = QLabel(desc)
         self.desc_lbl.setWordWrap(True)
         self.desc_lbl.setAlignment(Qt.AlignCenter)
@@ -91,7 +87,6 @@ class RoleCard(QFrame):
 
         layout.addLayout(header_layout)
 
-        # Features list with better visibility
         if features:
             for feature in features:
                 feature_item = QLabel(f"✓ {feature}")
@@ -105,7 +100,6 @@ class RoleCard(QFrame):
                 """)
                 layout.addWidget(feature_item)
 
-        # Action hint with better visibility
         action_hint = QLabel("Click to select")
         action_hint.setAlignment(Qt.AlignCenter)
         action_hint.setStyleSheet(f"""
@@ -130,18 +124,17 @@ class RoleCard(QFrame):
         self.setGraphicsEffect(self.shadow)
 
     def setup_animations(self):
-        # Scale animation for hover effect
+
         from PyQt5.QtCore import QPropertyAnimation, QSize
         self.scale_animation = QPropertyAnimation(self, b"size")
         self.scale_animation.setDuration(200)
 
     def enterEvent(self, event):
-        # Enhanced hover effect
+
         self.shadow.setBlurRadius(35)
         self.shadow.setYOffset(12)
         self.shadow.setColor(QColor(0, 245, 160, 150) if self.role == "master" else QColor(76, 175, 80, 150))
-        
-        # Subtle scale up
+
         current_size = self.size()
         new_size = QSize(current_size.width() + 4, current_size.height() + 4)
         self.scale_animation.setStartValue(current_size)
@@ -151,12 +144,11 @@ class RoleCard(QFrame):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        # Reset shadow
+
         self.shadow.setBlurRadius(25)
         self.shadow.setYOffset(8)
         self.shadow.setColor(QColor(0, 0, 0, 120))
-        
-        # Scale back down
+
         current_size = self.size()
         normal_size = QSize(420, 340)
         self.scale_animation.setStartValue(current_size)
@@ -165,21 +157,20 @@ class RoleCard(QFrame):
         
         super().leaveEvent(event)
 
-
 class RoleSelectScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("roleSelectScreen")
         self.setWindowTitle("WinLink – Select Your Role")
         
-        # Keep window frame but make it custom-styled
-        # Using Qt.Window flag allows proper maximize behavior
-        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint)
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         
-        self.setStyleSheet(STYLE_SHEET)
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "WinLink_logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
-        # Window stays maximized - no dragging variables needed
+        self.setStyleSheet(STYLE_SHEET)
         
         self.setup_ui()
         self.setup_animations()
@@ -189,21 +180,15 @@ class RoleSelectScreen(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        
-        # Custom Title Bar - hidden since we use system frame now
-        # self._create_title_bar()
-        
-        # Content area with original margins
+
         content_widget = QWidget()
         content_widget.setObjectName("contentArea")
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(60, 60, 60, 80)
         content_layout.setSpacing(50)
-        
-        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
+
         main_layout.addWidget(content_widget, 1)
 
-        # Simple header
         self.main_title = QLabel("🔗 Choose Your Role")
         self.main_title.setAlignment(Qt.AlignCenter)
         self.main_title.setStyleSheet("""
@@ -226,7 +211,6 @@ class RoleSelectScreen(QWidget):
         """)
         content_layout.addWidget(self.subtitle)
 
-        # Simple cards layout
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(60)
         cards_layout.setContentsMargins(40, 20, 40, 20)
@@ -266,7 +250,6 @@ class RoleSelectScreen(QWidget):
 
         content_layout.addLayout(cards_layout)
 
-        # Simple back button
         content_layout.addStretch()
         
         self.back_btn = QPushButton("← Back to Welcome")
@@ -293,19 +276,16 @@ class RoleSelectScreen(QWidget):
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(20, 0, 10, 0)
         title_layout.setSpacing(10)
-        
-        # App icon and title
+
         app_info_layout = QHBoxLayout()
         app_info_layout.setSpacing(12)
-        
-        # App icon
+
         app_icon = QLabel("🔗")
         app_icon.setObjectName("appIcon")
         from PyQt5.QtGui import QFont
         app_icon.setFont(QFont("Segoe UI Emoji", 16))
         app_info_layout.addWidget(app_icon)
-        
-        # Title
+
         title_label = QLabel("WinLink - Role Selection")
         title_label.setObjectName("titleLabel")
         title_font = QFont("Segoe UI", 11, QFont.DemiBold)
@@ -314,12 +294,10 @@ class RoleSelectScreen(QWidget):
         
         title_layout.addLayout(app_info_layout)
         title_layout.addStretch()
-        
-        # Window controls
+
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(0)
-        
-        # Minimize button with proper height
+
         self.minimize_btn = QPushButton("-")
         self.minimize_btn.setFixedSize(45, 35)
         self.minimize_btn.clicked.connect(self.showMinimized)
@@ -341,8 +319,7 @@ class RoleSelectScreen(QWidget):
             }
         """)
         controls_layout.addWidget(self.minimize_btn)
-        
-        # Close button with proper height
+
         self.close_btn = QPushButton("✕")
         self.close_btn.setFixedSize(45, 35)
         self.close_btn.clicked.connect(self.close)
@@ -364,25 +341,19 @@ class RoleSelectScreen(QWidget):
         controls_layout.addWidget(self.close_btn)
         
         title_layout.addLayout(controls_layout)
-        
-        # Title bar is not draggable - window stays maximized
-
-    # Window stays maximized - no dragging or resizing allowed
 
     def setup_animations(self):
-        # fade in title
+
         self.title_anim = QPropertyAnimation(self.main_title, b"windowOpacity")
         self.title_anim.setDuration(800)
         self.title_anim.setStartValue(0.0)
         self.title_anim.setEndValue(1.0)
         self.title_anim.setEasingCurve(QEasingCurve.OutCubic)
 
-        # slide in subtitle
         self.sub_anim = QPropertyAnimation(self.subtitle, b"pos")
         self.sub_anim.setDuration(600)
         self.sub_anim.setEasingCurve(QEasingCurve.OutCubic)
 
-        # fade in back button
         self.btn_anim = QPropertyAnimation(self.back_btn, b"windowOpacity")
         self.btn_anim.setDuration(600)
         self.btn_anim.setStartValue(0.0)
@@ -423,8 +394,20 @@ class RoleSelectScreen(QWidget):
         self.welcome.showMaximized()
         self.close()
 
-
 if __name__ == "__main__":
+    import ctypes
     app = QApplication(sys.argv)
+    
+    try:
+        myappid = 'winlink.fyp.distributed.2.0'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except:
+        pass
+    
+    icon_path = os.path.join(os.path.dirname(__file__), "assets", "WinLink_logo.ico")
+    if os.path.exists(icon_path):
+        from PyQt5.QtGui import QIcon
+        app.setWindowIcon(QIcon(icon_path))
+    
     win = RoleSelectScreen()
     sys.exit(app.exec_())

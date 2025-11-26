@@ -1,4 +1,4 @@
-# worker/worker_ui_enhanced.py
+
 
 import sys, os, socket, threading, psutil, time, json
 from PyQt5.QtWidgets import (
@@ -7,40 +7,34 @@ from PyQt5.QtWidgets import (
     QFormLayout, QLineEdit, QGraphicsDropShadowEffect, QMessageBox,
     QFileDialog, QSizePolicy, QSplitter
 )
-from PyQt5.QtGui import QColor, QIntValidator, QTextCursor
+from PyQt5.QtGui import QColor, QIntValidator, QTextCursor, QIcon
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Ensure that `core/` and `assets/` sit on sys.path
 ROOT = os.path.abspath(os.path.join(__file__, "..", ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-# ──────────────────────────────────────────────────────────────────────────────
 
 from core.task_executor import TaskExecutor
 from core.network import WorkerNetwork, MessageType, NetworkMessage
 from assets.styles import STYLE_SHEET
 
-
 class LogSignals(QObject):
     """Signals for thread-safe logging"""
     log_message = pyqtSignal(str)
-
 
 class WorkerUI(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("mainWindow")
         self.setWindowTitle("WinLink – Worker PC")
-        
-        # Keep window frame but make it custom-styled
-        # Using Qt.Window flag allows proper maximize behavior
+
         self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         
-        # Window stays maximized - no dragging variables needed
+        icon_path = os.path.join(ROOT, "assets", "WinLink_logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
-        # Core
         self.network = WorkerNetwork()
         self.task_executor = TaskExecutor()
         self.current_tasks = {}
@@ -49,22 +43,19 @@ class WorkerUI(QWidget):
         self.last_output_text = "No task output yet."
         self.task_log_initialized = False  # Track if we've written first real log
         self.startup_logs_shown = False  # Track if startup logs have been shown
-        
-        # Create log signals for thread-safe logging
+
         self.log_signals = LogSignals()
         self.log_signals.log_message.connect(self._append_log_to_ui)
 
-        # Network handlers
         self.network.register_handler(MessageType.TASK_REQUEST, self.handle_task_request)
         self.network.register_handler(MessageType.RESOURCE_REQUEST, self.handle_resource_request)
         self.network.register_handler(MessageType.HEARTBEAT, self.handle_heartbeat)
         self.network.set_connection_callback(self.handle_master_connected)
 
-        # Build UI
         self.setup_ui()
         self.update_ip()
         self.start_monitoring_thread()
-        # Initial resource update to populate immediately
+
         QTimer.singleShot(100, self.update_resources_now)
 
     def handle_master_connected(self, addr):
@@ -95,23 +86,17 @@ class WorkerUI(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Custom Title Bar - hidden since we use system frame now
-        # self._create_title_bar()
-
-        # Content area
         content_widget = QWidget()
         content_widget.setObjectName("contentArea")
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(12, 12, 12, 12)
         content_layout.setSpacing(6)
 
-        # Header
         title = QLabel("WinLink – Worker PC")
         title.setObjectName("headerLabel")
         title.setAlignment(Qt.AlignCenter)
         content_layout.addWidget(title)
 
-        # Responsive splitter for panels
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(8)
@@ -120,7 +105,6 @@ class WorkerUI(QWidget):
         splitter.setSizes([400, 600])
         content_layout.addWidget(splitter, 1)
 
-        # main_layout.addWidget(self.title_bar)  # Hidden - using system frame
         main_layout.addWidget(content_widget, 1)
 
     def _create_title_bar(self):
@@ -132,19 +116,16 @@ class WorkerUI(QWidget):
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(20, 0, 10, 0)
         title_layout.setSpacing(10)
-        
-        # App icon and title
+
         app_info_layout = QHBoxLayout()
         app_info_layout.setSpacing(12)
-        
-        # App icon
+
         app_icon = QLabel("⚡")
         app_icon.setObjectName("appIcon")
         from PyQt5.QtGui import QFont
         app_icon.setFont(QFont("Segoe UI Emoji", 16))
         app_info_layout.addWidget(app_icon)
-        
-        # Title
+
         title_label = QLabel("WinLink - Worker PC (Enhanced)")
         title_label.setObjectName("titleLabel")
         title_font = QFont("Segoe UI", 11, QFont.DemiBold)
@@ -153,12 +134,10 @@ class WorkerUI(QWidget):
         
         title_layout.addLayout(app_info_layout)
         title_layout.addStretch()
-        
-        # Window controls
+
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(0)
-        
-        # Minimize button with proper height
+
         self.minimize_btn = QPushButton("-")
         self.minimize_btn.setFixedSize(45, 35)
         self.minimize_btn.clicked.connect(self.showMinimized)
@@ -180,8 +159,7 @@ class WorkerUI(QWidget):
             }
         """)
         controls_layout.addWidget(self.minimize_btn)
-        
-        # Close button with proper height
+
         self.close_btn = QPushButton("✕")
         self.close_btn.setFixedSize(45, 35)
         self.close_btn.clicked.connect(self.close)
@@ -203,10 +181,6 @@ class WorkerUI(QWidget):
         controls_layout.addWidget(self.close_btn)
         
         title_layout.addLayout(controls_layout)
-        
-        # Title bar is not draggable - window stays maximized
-
-    # Window stays maximized - no dragging or resizing allowed
 
     def create_connection_panel(self):
         panel = QFrame()
@@ -214,7 +188,6 @@ class WorkerUI(QWidget):
         layout = QVBoxLayout(panel)
         layout.setSpacing(2)
 
-        # — Connection Settings —
         conn_gb = QGroupBox("Connection Settings")
         conn_layout = QVBoxLayout(conn_gb)
         conn_layout.setContentsMargins(12, 20, 12, 12)
@@ -226,7 +199,7 @@ class WorkerUI(QWidget):
         self.port_input.setPlaceholderText("Port (e.g. 5001)")
         self.port_input.setValidator(QIntValidator(1, 65535))
         self.port_input.setObjectName("portInput")
-        # Improve visibility and sizing for input
+
         self.port_input.setFixedHeight(28)
         p_font = self.port_input.font()
         p_font.setPointSize(max(10, p_font.pointSize()))
@@ -237,7 +210,6 @@ class WorkerUI(QWidget):
         conn_layout.addWidget(self.port_input)
         layout.addWidget(conn_gb)
 
-        # — Share Resources —
         share_gb = QGroupBox("Share Resources")
         share_gb.setMinimumHeight(200)
         share_gb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
@@ -246,7 +218,6 @@ class WorkerUI(QWidget):
         share_layout.setContentsMargins(12, 20, 12, 12)
         share_layout.setSpacing(8)
 
-        # push items up
         share_layout.addStretch()
 
         for text, default in [
@@ -258,12 +229,10 @@ class WorkerUI(QWidget):
             cb.setChecked(default)
             share_layout.addWidget(cb)
 
-        # --- LIMITS SECTION (Responsive UI) ---
         limits = QFormLayout()
         limits.setContentsMargins(0, 12, 0, 0)
         limits.setHorizontalSpacing(18)
 
-        # Make the form responsive
         limits.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         limits.setLabelAlignment(Qt.AlignLeft)
 
@@ -278,7 +247,6 @@ class WorkerUI(QWidget):
         }
         """
 
-        # CPU SPINBOX
         self.cpu_limit = QSpinBox()
         self.cpu_limit.setRange(10, 100)
         self.cpu_limit.setValue(80)
@@ -287,7 +255,6 @@ class WorkerUI(QWidget):
         self.cpu_limit.setStyleSheet(spinbox_style)
         self.cpu_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # MEMORY SPINBOX
         self.mem_limit = QSpinBox()
         self.mem_limit.setRange(256, 8192)
         self.mem_limit.setValue(512)
@@ -296,7 +263,6 @@ class WorkerUI(QWidget):
         self.mem_limit.setStyleSheet(spinbox_style)
         self.mem_limit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # LABELS
         lbl_cpu = QLabel("Max CPU:")
         lbl_cpu.setObjectName("dataLabel")
         lbl_cpu.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -305,7 +271,6 @@ class WorkerUI(QWidget):
         lbl_mem.setObjectName("dataLabel")
         lbl_mem.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        # ROW WRAPPERS TO FORCE PROPER RESIZING
         cpu_row = QWidget()
         cpu_layout = QHBoxLayout(cpu_row)
         cpu_layout.setContentsMargins(0, 0, 0, 0)
@@ -318,7 +283,6 @@ class WorkerUI(QWidget):
         mem_layout.addWidget(self.mem_limit)
         mem_row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # Add rows
         limits.addRow(lbl_cpu, cpu_row)
         limits.addRow(lbl_mem, mem_row)
 
@@ -327,7 +291,6 @@ class WorkerUI(QWidget):
         share_layout.addStretch()
         layout.addWidget(share_gb)
 
-        # — Connection Status —
         status_gb = QGroupBox("Connection Status")
         status_layout = QVBoxLayout(status_gb)
         status_layout.setContentsMargins(12, 12, 12, 12)
@@ -353,11 +316,10 @@ class WorkerUI(QWidget):
         status_layout.addLayout(hbox)
         layout.addWidget(status_gb)
 
-        # — Start / Stop Buttons —
         self.start_btn = QPushButton("Start Worker")
         self.start_btn.setObjectName("startBtn")
         self.start_btn.clicked.connect(self.start_worker)
-        # Give the start button more padding and height for better visibility
+
         self.start_btn.setMinimumHeight(40)  # Taller button
         self.start_btn.setMinimumWidth(120)  # Reasonable minimum width
         self.start_btn.setStyleSheet("QPushButton#startBtn { padding: 8px 16px; font-size: 10pt; font-weight: bold; }")
@@ -370,7 +332,6 @@ class WorkerUI(QWidget):
         self.stop_btn.setMinimumWidth(120)  # Reasonable minimum width
         self.stop_btn.setStyleSheet("QPushButton#stopBtn { padding: 8px 16px; font-size: 10pt; font-weight: bold; }")
 
-        # Container to add top margin above the buttons and keep them stacked
         btn_container = QFrame()
         btn_layout = QVBoxLayout(btn_container)
         btn_layout.setContentsMargins(0, 15, 0, 0)  # More top margin
@@ -390,7 +351,6 @@ class WorkerUI(QWidget):
         layout.setSpacing(10)
         layout.setContentsMargins(12, 12, 12, 12)
 
-        # Current Tasks
         tasks_gb = QGroupBox("Current Tasks")
         v = QVBoxLayout(tasks_gb)
         v.setContentsMargins(8, 20, 8, 8)
@@ -400,12 +360,12 @@ class WorkerUI(QWidget):
         self.tasks_display.setPlainText("No active tasks.")
         self.tasks_display.setMinimumHeight(70)
         self.tasks_display.setMaximumHeight(100)
-        # Improve font for better readability - larger font for active tasks
+
         tasks_font = self.tasks_display.font()
         tasks_font.setFamily("Segoe UI")
         tasks_font.setBold(True)  # Make it bold for better visibility
         self.tasks_display.setFont(tasks_font)
-        # Override any CSS font settings to ensure our font size is applied
+
         self.tasks_display.setStyleSheet("""
             QTextEdit#tasksDisplay {
                 background-color: rgba(30, 30, 40, 0.8);
@@ -419,8 +379,7 @@ class WorkerUI(QWidget):
         """)
         v.addWidget(self.tasks_display)
         layout.addWidget(tasks_gb)
-        
-        # Task Output Display
+
         output_gb = QGroupBox("Task Output")
         ov = QVBoxLayout(output_gb)
         ov.setContentsMargins(8, 20, 8, 8)
@@ -428,13 +387,13 @@ class WorkerUI(QWidget):
         self.task_output_display.setObjectName("tasksDisplay")
         self.task_output_display.setReadOnly(True)
         self.task_output_display.setPlainText("No task output yet.")
-        self.task_output_display.setMinimumHeight(100)  # Increased height
-        self.task_output_display.setMaximumHeight(150)  # Increased max height
-        # Enhanced font for much better readability - smaller font for placeholder text
+        self.task_output_display.setMinimumHeight(80)
+        self.task_output_display.setMaximumHeight(120)
+
         output_font = self.task_output_display.font()
         output_font.setFamily("Consolas")  # Monospace for better code/output readability
         self.task_output_display.setFont(output_font)
-        # Better styling for output display
+
         self.task_output_display.setStyleSheet("""
             QTextEdit#tasksDisplay {
                 background-color: rgba(30, 30, 40, 0.8);
@@ -449,13 +408,11 @@ class WorkerUI(QWidget):
         ov.addWidget(self.task_output_display)
         layout.addWidget(output_gb)
 
-        # System Resources - Enhanced UI
         res_gb = QGroupBox("💻 System Resources (Real-time)")
         rv = QVBoxLayout(res_gb)
-        rv.setContentsMargins(12, 20, 12, 12)
-        rv.setSpacing(12)
+        rv.setContentsMargins(10, 15, 10, 10)
+        rv.setSpacing(8)
 
-        # Build and stash bar layouts
         self.cpu_bar_layout  = self._make_bar("CPU Usage:",    "#00f5a0")
         self.mem_bar_layout  = self._make_bar("Memory Usage:", "#667eea")
         self.disk_bar_layout = self._make_bar("Disk Usage:",   "#ffb74d")
@@ -464,7 +421,6 @@ class WorkerUI(QWidget):
         rv.addLayout(self.mem_bar_layout)
         rv.addLayout(self.disk_bar_layout)
 
-        # Extract widgets
         self.cpu_bar    = self.cpu_bar_layout .itemAt(1).widget()
         self.cpu_label  = self.cpu_bar_layout .itemAt(2).widget()
         self.mem_bar    = self.mem_bar_layout .itemAt(1).widget()
@@ -474,8 +430,8 @@ class WorkerUI(QWidget):
 
         self.res_details = QTextEdit()
         self.res_details.setReadOnly(True)
-        self.res_details.setMinimumHeight(160)
-        self.res_details.setMaximumHeight(160)
+        self.res_details.setMinimumHeight(120)
+        self.res_details.setMaximumHeight(120)
         res_font = self.res_details.font()
         res_font.setPointSize(9)
         res_font.setFamily("Consolas")
@@ -495,7 +451,6 @@ class WorkerUI(QWidget):
 
         layout.addWidget(res_gb)
 
-        # Task Log - Enhanced styling and better visibility
         log_gb = QGroupBox("📋 Task Execution Log")
         lv = QVBoxLayout(log_gb)
         lv.setContentsMargins(12, 15, 12, 12)  # Better margins
@@ -503,18 +458,18 @@ class WorkerUI(QWidget):
 
         self.task_log = QTextEdit()
         self.task_log.setReadOnly(True)
-        # Better size constraints for log visibility
-        self.task_log.setMinimumHeight(200)  # Increased minimum height for better visibility
-        self.task_log.setMaximumHeight(600)  # Increased maximum height
-        self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # Simple initial placeholder
+
+        self.task_log.setMinimumHeight(150)
+        self.task_log.setMaximumHeight(250)
+        self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
         self.task_log.setPlainText("=== TASK EXECUTION LOG ===\n\nWaiting for logs...")
-        # Enhanced font and styling for task log
+
         log_font = self.task_log.font()
         log_font.setPointSize(9)  # Slightly larger font
         log_font.setFamily("Consolas")  # Monospace for log readability
         self.task_log.setFont(log_font)
-        # Better styling for the log area
+
         self.task_log.setStyleSheet("""
             QTextEdit {
                 background-color: rgba(20, 20, 30, 0.9);
@@ -530,12 +485,13 @@ class WorkerUI(QWidget):
             }
         """)
 
-        # Enhanced buttons section with better styling
+        lv.addWidget(self.task_log)
+        layout.addWidget(log_gb)
+
         btns = QHBoxLayout()
         btns.setContentsMargins(0, 10, 0, 0)
         btns.setSpacing(12)
-        
-        # Clear button with icon
+
         c = QPushButton("🗑️ Clear Log")
         c.clicked.connect(self.clear_task_log)
         c.setMinimumHeight(42)
@@ -554,8 +510,7 @@ class WorkerUI(QWidget):
                 background: rgba(255, 120, 120, 0.9);
             }
         """)
-        
-        # Export button with icon
+
         e = QPushButton("📤 Export Log")
         e.clicked.connect(self.export_log)
         e.setMinimumHeight(42)
@@ -577,11 +532,9 @@ class WorkerUI(QWidget):
         
         btns.addWidget(c)
         btns.addWidget(e)
-        btns.addStretch()  # Push buttons to the left
+        btns.addStretch()
 
-        lv.addWidget(self.task_log)
-        lv.addLayout(btns)
-        layout.addWidget(log_gb)
+        layout.addLayout(btns)
 
         self.apply_shadow(panel)
         return panel
@@ -589,8 +542,7 @@ class WorkerUI(QWidget):
     def _make_bar(self, text, color):
         h = QHBoxLayout()
         h.setSpacing(8)
-        
-        # Label with smaller font for better fit
+
         lbl = QLabel(text)
         lbl.setMinimumWidth(100)
         lbl.setObjectName("infoLabel")
@@ -600,7 +552,6 @@ class WorkerUI(QWidget):
         lbl.setFont(lbl_font)
         lbl.setStyleSheet("color: #e6e6fa; font-size: 9pt;")
 
-        # Progress bar with compact styling
         bar = QProgressBar()
         bar.setTextVisible(False)
         bar.setMaximumHeight(18)
@@ -618,7 +569,6 @@ class WorkerUI(QWidget):
             }}
         """)
 
-        # Value label with smaller font
         val = QLabel("0%")
         val.setMinimumWidth(100)
         val.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -655,8 +605,7 @@ class WorkerUI(QWidget):
             self.conn_str.setText(f"{self.network.ip}:{port}")
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
-            
-            # Show startup info in console only, not in task log
+
             start_time = time.strftime("%Y-%m-%d %H:%M:%S")
             hostname = socket.gethostname()
             print(f"[WORKER] " + "─" * 60)
@@ -666,8 +615,7 @@ class WorkerUI(QWidget):
             print(f"[WORKER]    🔌 Port: {port}")
             print(f"[WORKER]    ✓ Status: Ready to accept tasks")
             print(f"[WORKER] " + "─" * 60)
-            
-            # Update task log to show ready status
+
             if not self.startup_logs_shown:
                 self.startup_logs_shown = True
                 self.task_log_initialized = True  # Mark as initialized so first task log doesn't clear this
@@ -686,8 +634,7 @@ class WorkerUI(QWidget):
         self.conn_str.setText("N/A")
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        
-        # Show stop info in console only
+
         stop_time = time.strftime("%Y-%m-%d %H:%M:%S")
         print(f"[WORKER] " + "─" * 60)
         print(f"[WORKER] 🛑 Worker stopped at {stop_time}")
@@ -709,14 +656,12 @@ class WorkerUI(QWidget):
         if not task_id or not code:
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
             return
-        
-        # Log task received with timestamp
+
         task_name = data.get("name", "Unnamed Task")
         receive_time = time.strftime("%Y-%m-%d %H:%M:%S")
         self.log(f"📥 Task received: '{task_name}' [ID: {task_id[:8]}...] at {receive_time}")
         self.log(f"   📋 Task queued for execution")
-        
-        # Immediately show the task in the UI with 'received' status
+
         with self.tasks_lock:
             self.current_tasks[task_id] = {
                 "status": "received",
@@ -726,21 +671,19 @@ class WorkerUI(QWidget):
                 "output": None,
                 "name": task_name
             }
-        # Schedule UI updates on the Qt main thread
+
         QTimer.singleShot(0, self._refresh_tasks_display)
         QTimer.singleShot(0, self._refresh_output_display)
 
         def run_task():
-            # Small delay to ensure 'received' status is visible
+
             time.sleep(0.1)
             
             start_time = time.time()
             start_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
-            
-            # Update status to running and force UI refresh
+
             self._set_task_state(task_id, status="executing", progress=0, started_at=start_time)
-            
-            # Log execution start with detailed information
+
             self.log("─" * 60)
             self.log(f"▶️  TASK EXECUTION STARTED")
             self.log(f"   📋 Task: '{task_name}'")
@@ -749,17 +692,16 @@ class WorkerUI(QWidget):
             self.log(f"   🖥️  Worker: {socket.gethostname()} [{self.network.ip}]")
             self.log(f"   ⚙️  Status: EXECUTING")
             self.log("─" * 60)
-            
-            # Force immediate UI update to show executing status
+
             QTimer.singleShot(0, self._refresh_tasks_display)
             self.send_progress_update(task_id, 0)
 
             def progress_with_log(pct):
-                # Log significant progress milestones
+
                 if pct in [25, 50, 75, 100]:
                     self.log(f"⏳ Task '{task_name}' [{task_id[:8]}...] progress: {pct}%")
                 self.send_progress_update(task_id, pct)
-                # Force UI refresh on progress updates
+
                 QTimer.singleShot(0, self._refresh_tasks_display)
             
             result = self.task_executor.execute_task(
@@ -771,14 +713,12 @@ class WorkerUI(QWidget):
             status = "done" if result.get("success") else "failed"
             progress_final = 100 if result.get("success") else max(0, min(99, self._get_task_progress(task_id)))
             self.send_progress_update(task_id, progress_final)
-            
-            # Calculate execution time
+
             end_time = time.time()
             end_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time))
             execution_time = result.get("execution_time", end_time - start_time)
             memory_used = result.get("memory_used", 0)
-            
-            # Log task completion or failure with detailed information
+
             if result.get("success"):
                 self.log(f"✅ Task completed: '{task_name}' [ID: {task_id[:8]}...]")
                 self.log(f"   ⏱️  Ended at: {end_time_str}")
@@ -794,14 +734,12 @@ class WorkerUI(QWidget):
                 self.log(f"   ✗ Error: {error_msg[:100]}")
             self.log("─" * 60)  # Separator line for readability
 
-            # Build output text
             output_parts = []
             if result.get("stdout"):
                 output_parts.append(f"STDOUT:\n{result['stdout']}")
             if result.get("stderr"):
                 output_parts.append(f"STDERR:\n{result['stderr']}")
-            
-            # Handle result display with better formatting
+
             result_val = result.get("result")
             if result_val is not None:
                 if isinstance(result_val, dict):
@@ -826,7 +764,7 @@ class WorkerUI(QWidget):
                 else:
                     output_parts.append(f"RESULT:\n{str(result_val)}")
             else:
-                # result is None - check if task succeeded
+
                 if result.get("success") and not result.get("error"):
                     output_parts.append("RESULT:\n(Task completed but returned None)")
             
@@ -855,7 +793,7 @@ class WorkerUI(QWidget):
                 memory_used_mb=memory_used_mb,
                 output=output_text
             )
-            # Schedule cleanup on the Qt main thread
+
             QTimer.singleShot(0, lambda: self._schedule_task_cleanup(task_id))
 
         threading.Thread(target=run_task, daemon=True).start()
@@ -880,15 +818,14 @@ class WorkerUI(QWidget):
         """Add a log message to the task execution log (thread-safe)"""
         now = time.strftime("%H:%M:%S")
         formatted_msg = f"[{now}] {msg}"
-        
-        # Emit signal - this is thread-safe and will be queued to main thread
+
         self.log_signals.log_message.emit(formatted_msg)
     
     def _append_log_to_ui(self, formatted_msg):
         """Append log to UI - runs on main thread via signal"""
         try:
             if not self.task_log_initialized:
-                # Already initialized from startup, just append
+
                 current_text = self.task_log.toPlainText()
                 lines = current_text.splitlines()
             else:
@@ -897,11 +834,9 @@ class WorkerUI(QWidget):
             
             lines.append(formatted_msg)
             new_text = "\n".join(lines)
-            
-            # Update the text widget
+
             self.task_log.setPlainText(new_text)
-            
-            # Move cursor to end to show latest log
+
             self.task_log.moveCursor(QTextCursor.End)
             self.task_log.ensureCursorVisible()
             
@@ -925,7 +860,7 @@ class WorkerUI(QWidget):
                 try:
                     stats = self.task_executor.get_system_resources()
                     if stats:
-                        # Create a new method invocation each time to avoid capture issues
+
                         from functools import partial
                         callback = partial(self._update_resources, stats.copy())
                         QTimer.singleShot(0, callback)
@@ -953,7 +888,6 @@ class WorkerUI(QWidget):
         battery = r.get('battery_percent')
         plugged = r.get('battery_plugged')
 
-        # Read configured limits
         try:
             cpu_limit_val = int(self.cpu_limit.value())
         except Exception:
@@ -963,7 +897,6 @@ class WorkerUI(QWidget):
         except Exception:
             mem_limit_val = 8192
 
-        # Update bars with actual usage
         try:
             self.cpu_bar.setValue(int(cpu))
             self.cpu_label.setText(f"{cpu:.1f}% (limit {cpu_limit_val}%)")
@@ -983,19 +916,16 @@ class WorkerUI(QWidget):
         with self.tasks_lock:
             active_tasks = len([t for t in self.current_tasks.values() if t.get('status') == 'running'])
 
-        # Calculate RAM used by tasks
         task_memory_mb = 0
         with self.tasks_lock:
             for task_meta in self.current_tasks.values():
                 task_memory_mb += task_meta.get('memory_used_mb', 0)
-        
-        # Get additional real-time metrics
+
         mem_total_gb = psutil.virtual_memory().total / (1024**3)
         mem_used_gb = psutil.virtual_memory().used / (1024**3)
         mem_available_mb = r.get('memory_available_mb', 0)
         disk_free_gb = r.get('disk_free_gb', 0)
-        
-        # CPU per-core usage (if available)
+
         try:
             cpu_per_core = psutil.cpu_percent(interval=0, percpu=True)
             cpu_cores_info = ", ".join([f"{c:.0f}%" for c in cpu_per_core[:4]])  # Show first 4 cores
@@ -1023,7 +953,6 @@ class WorkerUI(QWidget):
         )
         self.res_details.setPlainText(details)
 
-
     def _set_task_state(self, task_id: str, **updates):
         with self.tasks_lock:
             state = self.current_tasks.setdefault(task_id, {
@@ -1035,7 +964,7 @@ class WorkerUI(QWidget):
             state.update(updates)
             if updates.get("output"):
                 self.last_output_text = updates["output"]
-        # Schedule UI updates on the Qt main thread
+
         QTimer.singleShot(0, self._refresh_tasks_display)
         QTimer.singleShot(0, self._refresh_output_display)
 
@@ -1051,16 +980,14 @@ class WorkerUI(QWidget):
                     mem_used = meta.get("memory_used_mb", 0)
                     started_at = meta.get("started_at")
                     task_name = meta.get("name", "Task")
-                    
-                    # Format time info
+
                     time_info = ""
                     if started_at:
                         elapsed = time.time() - started_at
                         time_info = f" | Elapsed: {elapsed:.1f}s"
                     
                     mem_str = f" | RAM: {mem_used:.1f}MB" if mem_used > 0 else ""
-                    
-                    # Better status icons and labels
+
                     status_icon = "▶️" if status in ["Executing", "Running"] else "✅" if status == "Done" else "❌" if status == "Failed" else "📥" if status == "Received" else "⏳"
                     status_label = "EXECUTING" if status in ["Executing", "Running"] else status.upper()
                     
@@ -1074,13 +1001,13 @@ class WorkerUI(QWidget):
             if not self.current_tasks:
                 output_text = self.last_output_text if self.last_output_text != "No task output yet." else "No task output yet.\n\nTask output will appear here when tasks are executed."
             else:
-                # Find the most recent task with output
+
                 tasks_with_output = [
                     (tid, meta) for tid, meta in self.current_tasks.items() 
                     if meta.get("output")
                 ]
                 if tasks_with_output:
-                    # Sort by completed_at or started_at (most recent first)
+
                     tasks_with_output.sort(
                         key=lambda x: x[1].get("completed_at") or x[1].get("started_at") or 0,
                         reverse=True
@@ -1092,7 +1019,7 @@ class WorkerUI(QWidget):
                     output_text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     output_text += latest_meta.get('output', '')
                 else:
-                    # Show active/executing tasks
+
                     active = [(tid, meta) for tid, meta in self.current_tasks.items() 
                              if meta.get("status") in ["executing", "running"]]
                     if active:
@@ -1104,7 +1031,7 @@ class WorkerUI(QWidget):
                         output_text += f"\n📊 Progress: {progress}%\n"
                         output_text += f"\n⏳ Output will appear when task completes"
                     else:
-                        # Show received tasks
+
                         received = [(tid, meta) for tid, meta in self.current_tasks.items() 
                                   if meta.get("status") in ["received", "pending"]]
                         if received:
@@ -1139,7 +1066,7 @@ class WorkerUI(QWidget):
         """Handle window close event - cleanup resources"""
         try:
             self.monitoring_active = False
-            # Give monitoring thread a moment to stop
+
             import time
             time.sleep(0.1)
             self.network.stop()
@@ -1147,7 +1074,6 @@ class WorkerUI(QWidget):
             pass
         finally:
             e.accept()
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
