@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QSizePolicy, QSplitter
 )
 from PyQt5.QtGui import QColor, QIntValidator, QTextCursor
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Ensure that `core/` and `assets/` sit on sys.path
@@ -20,6 +20,11 @@ if ROOT not in sys.path:
 from core.task_executor import TaskExecutor
 from core.network import WorkerNetwork, MessageType, NetworkMessage
 from assets.styles import STYLE_SHEET
+
+
+class LogSignals(QObject):
+    """Signals for thread-safe logging"""
+    log_message = pyqtSignal(str)
 
 
 class WorkerUI(QWidget):
@@ -43,6 +48,11 @@ class WorkerUI(QWidget):
         self.monitoring_active = True
         self.last_output_text = "No task output yet."
         self.task_log_initialized = False  # Track if we've written first real log
+        self.startup_logs_shown = False  # Track if startup logs have been shown
+        
+        # Create log signals for thread-safe logging
+        self.log_signals = LogSignals()
+        self.log_signals.log_message.connect(self._append_log_to_ui)
 
         # Network handlers
         self.network.register_handler(MessageType.TASK_REQUEST, self.handle_task_request)
@@ -646,16 +656,27 @@ class WorkerUI(QWidget):
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
             
-            # Detailed start log
+            # Show startup info in console only, not in task log
             start_time = time.strftime("%Y-%m-%d %H:%M:%S")
             hostname = socket.gethostname()
-            self.log("─" * 60)
-            self.log(f"🚀 Worker started at {start_time}")
-            self.log(f"   💻 Hostname: {hostname}")
-            self.log(f"   🌐 IP Address: {self.network.ip}")
-            self.log(f"   🔌 Port: {port}")
-            self.log(f"   ✓ Status: Ready to accept tasks")
-            self.log("─" * 60)
+            print(f"[WORKER] " + "─" * 60)
+            print(f"[WORKER] 🚀 Worker started at {start_time}")
+            print(f"[WORKER]    💻 Hostname: {hostname}")
+            print(f"[WORKER]    🌐 IP Address: {self.network.ip}")
+            print(f"[WORKER]    🔌 Port: {port}")
+            print(f"[WORKER]    ✓ Status: Ready to accept tasks")
+            print(f"[WORKER] " + "─" * 60)
+            
+            # Update task log to show ready status
+            if not self.startup_logs_shown:
+                self.startup_logs_shown = True
+                self.task_log_initialized = True  # Mark as initialized so first task log doesn't clear this
+                self.task_log.setPlainText(
+                    "=== TASK EXECUTION LOG ===\n\n"
+                    f"Worker started: {start_time}\n"
+                    f"Status: Ready to receive tasks from Master\n\n"
+                    "Task execution details will appear here when tasks are received..."
+                )
         else:
             QMessageBox.critical(self, "Error", "Failed to start.")
 
@@ -666,13 +687,13 @@ class WorkerUI(QWidget):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         
-        # Detailed stop log
+        # Show stop info in console only
         stop_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.log("─" * 60)
-        self.log(f"🛑 Worker stopped at {stop_time}")
-        self.log(f"   ✓ All connections closed")
-        self.log(f"   ✓ Server shutdown complete")
-        self.log("─" * 60)
+        print(f"[WORKER] " + "─" * 60)
+        print(f"[WORKER] 🛑 Worker stopped at {stop_time}")
+        print(f"[WORKER]    ✓ All connections closed")
+        print(f"[WORKER]    ✓ Server shutdown complete")
+        print(f"[WORKER] " + "─" * 60)
 
     def on_copy_clicked(self):
         QApplication.clipboard().setText(self.conn_str.text())
@@ -851,57 +872,49 @@ class WorkerUI(QWidget):
     def clear_task_log(self):
         """Clear the task log and reset to placeholder"""
         self.task_log_initialized = False
+        self.startup_logs_shown = False
         self.task_log.clear()
         self.task_log.setPlainText("=== TASK EXECUTION LOG ===\n\nWaiting for logs...")
 
     def log(self, msg):
-        """Add a log message to the task execution log"""
+        """Add a log message to the task execution log (thread-safe)"""
         now = time.strftime("%H:%M:%S")
         formatted_msg = f"[{now}] {msg}"
-
-        def append():
-            try:
-                # Clear placeholder on first real log
-                if not self.task_log_initialized:
-                    self.task_log_initialized = True
-                    self.task_log.clear()
-                    lines = []
-                else:
-                    current_text = self.task_log.toPlainText()
-                    # Keep last 99 lines to prevent log from growing too large
-                    lines = current_text.splitlines()[-99:]
-                
-                lines.append(formatted_msg)
-                new_text = "\n".join(lines)
-                
-                # Update the text widget
-                self.task_log.setPlainText(new_text)
-                
-                # Move cursor to end to show latest log
-                self.task_log.moveCursor(QTextCursor.End)
-                self.task_log.ensureCursorVisible()
-                
-                # Force immediate UI update
-                self.task_log.viewport().update()
-                self.task_log.repaint()
-                QApplication.processEvents()
-                
-            except Exception as e:
-                print(f"[LOG ERROR] Exception in log append: {e}")
-                import traceback
-                traceback.print_exc()
-
-        # Ensure we're on the main Qt thread
-        if threading.current_thread() == threading.main_thread():
-            append()
-        else:
-            QTimer.singleShot(0, append)
+        
+        # Emit signal - this is thread-safe and will be queued to main thread
+        self.log_signals.log_message.emit(formatted_msg)
+    
+    def _append_log_to_ui(self, formatted_msg):
+        """Append log to UI - runs on main thread via signal"""
+        try:
+            if not self.task_log_initialized:
+                # Already initialized from startup, just append
+                current_text = self.task_log.toPlainText()
+                lines = current_text.splitlines()
+            else:
+                current_text = self.task_log.toPlainText()
+                lines = current_text.splitlines()[-99:]  # Keep last 99 lines
+            
+            lines.append(formatted_msg)
+            new_text = "\n".join(lines)
+            
+            # Update the text widget
+            self.task_log.setPlainText(new_text)
+            
+            # Move cursor to end to show latest log
+            self.task_log.moveCursor(QTextCursor.End)
+            self.task_log.ensureCursorVisible()
+            
+        except Exception as e:
+            print(f"[LOG ERROR] Exception in log append: {e}")
+            import traceback
+            traceback.print_exc()
 
     def export_log(self):
         fn, _ = QFileDialog.getSaveFileName(self, "Save Log", f"worker_log_{int(time.time())}.txt",
                                             "Text Files (*.txt)")
         if fn:
-            with open(fn, "w") as f:
+            with open(fn, "w", encoding="utf-8") as f:
                 f.write(self.task_log.toPlainText())
             QMessageBox.information(self, "Exported", f"Log saved to {fn}")
 
