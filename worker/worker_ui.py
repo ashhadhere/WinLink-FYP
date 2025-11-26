@@ -711,6 +711,8 @@ class WorkerUI(QWidget):
             start_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
             self._set_task_state(task_id, status="running", progress=0, started_at=start_time)
             self.log(f"▶️ Task started: '{task_name}' [ID: {task_id[:8]}...] at {start_time_str}")
+            self.log(f"   🖥️  EXECUTING ON WORKER: {socket.gethostname()} [{self.network.ip}]")
+            print(f"[WORKER {socket.gethostname()}] 🔧 Executing task {task_id[:8]}... on THIS worker machine")
             self.send_progress_update(task_id, 0)
 
             def progress_with_log(pct):

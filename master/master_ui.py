@@ -998,6 +998,7 @@ class MasterUI(QtWidgets.QWidget):
         task_id = self.task_manager.create_task(selected_type, code, data)
         print(f"[MASTER] 📤 Task submitted: {task_id[:8]}... Type: {selected_type.name}")
         print(f"[MASTER] 🔄 Available workers: {len(connected_workers)}")
+        print(f"[MASTER] ⚠️  MASTER WILL NOT EXECUTE - Only dispatching to worker")
         
         assigned_worker = self.dispatch_task_to_worker(task_id, code, data)
         if not assigned_worker:
@@ -1006,6 +1007,7 @@ class MasterUI(QtWidgets.QWidget):
         else:
             worker_short = assigned_worker[:20] + "..." if len(assigned_worker) > 20 else assigned_worker
             print(f"[MASTER] ✅ Task {task_id[:8]}... dispatched to worker {worker_short}")
+            print(f"[MASTER] ⏳ Waiting for worker '{worker_short}' to execute and return results...")
         self.refresh_task_table_async()
 
     def dispatch_task_to_worker(self, task_id: str, code: str, data: dict) -> Optional[str]:
@@ -1216,6 +1218,10 @@ class MasterUI(QtWidgets.QWidget):
     def handle_task_result(self, worker_id, data):
         task_id = data.get("task_id")
         result_payload = data.get("result", {})
+        
+        worker_short = worker_id[:20] + "..." if len(worker_id) > 20 else worker_id
+        print(f"[MASTER] 📥 Received result from worker {worker_short}")
+        print(f"[MASTER] 📊 VERIFICATION: Task {task_id[:8] if task_id else 'unknown'}... was executed on worker, NOT on master")
         
         # Log task completion
         if result_payload.get("success"):
