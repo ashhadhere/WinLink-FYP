@@ -526,7 +526,7 @@ class WorkerUI(QWidget):
         
         # Clear button with icon
         c = QPushButton("🗑️ Clear Log")
-        c.clicked.connect(self.task_log.clear)
+        c.clicked.connect(self.clear_task_log)
         c.setMinimumHeight(42)
         c.setMinimumWidth(110)
         c.setStyleSheet("""
@@ -851,24 +851,37 @@ class WorkerUI(QWidget):
         })
         self.network.send_message_to_master(msg)
 
+    def clear_task_log(self):
+        """Clear the task log and reset to placeholder"""
+        self.task_log_initialized = False
+        self.task_log.clear()
+        self.task_log.setPlainText("📝 Task Execution Log\n" + "─" * 60 + "\nTask execution details will appear here...\nYou will see: task received, started, progress, completion time, and results.")
+
     def log(self, msg):
         now = time.strftime("%H:%M:%S")
         
         # Debug: print to console to verify log is called
         print(f"[LOG {now}] {msg}")
+        print(f"[LOG DEBUG] task_log_initialized = {self.task_log_initialized}")
 
         def append():
             # Clear placeholder on first real log
             if not self.task_log_initialized:
+                print("[LOG DEBUG] First log - clearing placeholder")
                 self.task_log_initialized = True
                 self.task_log.clear()
                 lines = []
             else:
-                lines = self.task_log.toPlainText().splitlines()[-99:]
+                current_text = self.task_log.toPlainText()
+                print(f"[LOG DEBUG] Current log has {len(current_text)} chars, {len(current_text.splitlines())} lines")
+                lines = current_text.splitlines()[-99:]
             
             lines.append(f"[{now}] {msg}")
-            self.task_log.setPlainText("\n".join(lines))
+            new_text = "\n".join(lines)
+            print(f"[LOG DEBUG] Setting text with {len(new_text)} chars, {len(lines)} lines")
+            self.task_log.setPlainText(new_text)
             self.task_log.moveCursor(QTextCursor.End)
+            print(f"[LOG DEBUG] Text set successfully")
 
         QTimer.singleShot(0, append)
 
