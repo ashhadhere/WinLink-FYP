@@ -279,6 +279,7 @@ class WorkerNetwork:
         self.client_socket: Optional[socket.socket] = None
         self.broadcast_socket: Optional[socket.socket] = None
         self.message_handlers: Dict[str, Callable] = {}
+        self.connection_callback: Optional[Callable] = None  # Callback when master connects
         self.running = False
         self.broadcasting = False
         self.ip = ""
@@ -289,6 +290,10 @@ class WorkerNetwork:
     def register_handler(self, message_type: str, handler: Callable):
         """Register a handler for a specific message type"""
         self.message_handlers[message_type] = handler
+    
+    def set_connection_callback(self, callback: Callable):
+        """Set callback to be called when master connects"""
+        self.connection_callback = callback
     
     def start_server(self, port: int) -> bool:
         """Start server to accept connections from master"""
@@ -357,6 +362,10 @@ class WorkerNetwork:
             while self.running:
                 self.client_socket, addr = self.server_socket.accept()
                 print(f"Master connected from {addr}")
+                
+                # Call connection callback if set
+                if self.connection_callback:
+                    self.connection_callback(addr)
                 
                 # Send ready message
                 ready_msg = NetworkMessage(MessageType.READY, {

@@ -202,6 +202,14 @@ class MasterUI(QtWidgets.QWidget):
         # Multi-select dropdown using QComboBox with checkable items
         self.discovered_combo = QComboBox()
         self.discovered_combo.setMinimumHeight(36)
+        
+        # Set a QStandardItemModel to support checkable items
+        combo_model = QtGui.QStandardItemModel()
+        self.discovered_combo.setModel(combo_model)
+        
+        # Connect to model's dataChanged signal to update display text
+        combo_model.dataChanged.connect(self._update_combo_text)
+        
         self.discovered_combo.setStyleSheet("""
             QComboBox {
                 background: rgba(15, 20, 30, 0.95);
@@ -242,10 +250,6 @@ class MasterUI(QtWidgets.QWidget):
                 background: rgba(0, 245, 160, 0.15);
             }
         """)
-        
-        # Make the combo box view checkable
-        self.discovered_combo.setView(QtWidgets.QListView())
-        self.discovered_combo.view().setMinimumHeight(120)
         
         g_l.addWidget(self.discovered_combo)
         
@@ -697,10 +701,13 @@ class MasterUI(QtWidgets.QWidget):
                         pass
         
         # Clear and repopulate
-        self.discovered_combo.clear()
+        model = self.discovered_combo.model()
+        model.clear()
         
         if not discovered:
-            self.discovered_combo.addItem("🔍 Searching for workers...")
+            item = QtGui.QStandardItem("🔍 Searching for workers...")
+            item.setEnabled(False)
+            model.appendRow(item)
             self.discovered_combo.setEnabled(False)
             self.connect_discovered_btn.setEnabled(False)
             self.connect_all_btn.setEnabled(False)
@@ -725,25 +732,26 @@ class MasterUI(QtWidgets.QWidget):
                 display_text = f"🖥️ {hostname} ({ip}:{port})"
                 has_unconnected = True
             
-            self.discovered_combo.addItem(display_text)
+            # Create checkable item
+            item = QtGui.QStandardItem(display_text)
+            item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+            item.setCheckable(True)
             
-            # Make item checkable
-            item = self.discovered_combo.model().item(self.discovered_combo.count() - 1)
-            if item:
-                item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
-                # Store worker info as JSON string to avoid dict type error
-                item.setData(json.dumps(info), Qt.UserRole)
-                
-                # Restore check state if it was previously checked
-                if info in checked_workers:
-                    item.setCheckState(QtCore.Qt.Checked)
-                    selected_count += 1
-                else:
-                    item.setCheckState(QtCore.Qt.Unchecked)
-                
-                # Disable if already connected
-                if connected:
-                    item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEnabled)
+            # Store worker info as JSON string
+            item.setData(json.dumps(info), Qt.UserRole)
+            
+            # Restore check state if it was previously checked
+            if info in checked_workers:
+                item.setCheckState(QtCore.Qt.Checked)
+                selected_count += 1
+            else:
+                item.setCheckState(QtCore.Qt.Unchecked)
+            
+            # Disable if already connected
+            if connected:
+                item.setEnabled(False)
+            
+            model.appendRow(item)
         
         # Update combo box text to show selection count
         self._update_combo_text()

@@ -47,6 +47,7 @@ class WorkerUI(QWidget):
         self.network.register_handler(MessageType.TASK_REQUEST, self.handle_task_request)
         self.network.register_handler(MessageType.RESOURCE_REQUEST, self.handle_resource_request)
         self.network.register_handler(MessageType.HEARTBEAT, self.handle_heartbeat)
+        self.network.set_connection_callback(self.handle_master_connected)
 
         # Build UI
         self.setup_ui()
@@ -54,6 +55,15 @@ class WorkerUI(QWidget):
         self.start_monitoring_thread()
         # Initial resource update to populate immediately
         QTimer.singleShot(100, self.update_resources_now)
+
+    def handle_master_connected(self, addr):
+        """Handle when master connects to worker"""
+        connect_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.log("─" * 60)
+        self.log(f"🔗 Master connected from {addr[0]}:{addr[1]}")
+        self.log(f"   ⏱️  Connected at: {connect_time}")
+        self.log(f"   ✓ Worker ready to receive tasks")
+        self.log("─" * 60)
 
     def handle_resource_request(self, data):
         try:
@@ -486,7 +496,7 @@ class WorkerUI(QWidget):
         self.task_log.setMinimumHeight(120)  # Increased minimum height
         self.task_log.setMaximumHeight(400)  # Reasonable maximum height
         self.task_log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.task_log.setPlainText("📝 Task execution log will appear here...")
+        self.task_log.setPlainText("📝 Task Execution Log\n" + "─" * 60 + "\nTask execution details will appear here...\nYou will see: task received, started, progress, completion time, and results.")
         # Enhanced font and styling for task log
         log_font = self.task_log.font()
         log_font.setPointSize(9)  # Slightly larger font
@@ -633,7 +643,17 @@ class WorkerUI(QWidget):
             self.conn_str.setText(f"{self.network.ip}:{port}")
             self.start_btn.setEnabled(False)
             self.stop_btn.setEnabled(True)
-            self.log("Worker started")
+            
+            # Detailed start log
+            start_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            hostname = socket.gethostname()
+            self.log("─" * 60)
+            self.log(f"🚀 Worker started at {start_time}")
+            self.log(f"   💻 Hostname: {hostname}")
+            self.log(f"   🌐 IP Address: {self.network.ip}")
+            self.log(f"   🔌 Port: {port}")
+            self.log(f"   ✓ Status: Ready to accept tasks")
+            self.log("─" * 60)
         else:
             QMessageBox.critical(self, "Error", "Failed to start.")
 
@@ -643,7 +663,14 @@ class WorkerUI(QWidget):
         self.conn_str.setText("N/A")
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self.log("Worker stopped")
+        
+        # Detailed stop log
+        stop_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.log("─" * 60)
+        self.log(f"🛑 Worker stopped at {stop_time}")
+        self.log(f"   ✓ All connections closed")
+        self.log(f"   ✓ Server shutdown complete")
+        self.log("─" * 60)
 
     def on_copy_clicked(self):
         QApplication.clipboard().setText(self.conn_str.text())
@@ -660,8 +687,10 @@ class WorkerUI(QWidget):
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
             return
         
-        # Log task received
-        self.log(f"📥 Task received: {task_id[:8]}...")
+        # Log task received with timestamp
+        task_name = data.get("name", "Unnamed Task")
+        receive_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.log(f"📥 Task received: '{task_name}' [ID: {task_id[:8]}...] at {receive_time}")
         
         # Immediately show the task in the UI - ensure it's visible right away
         with self.tasks_lock:
@@ -670,21 +699,24 @@ class WorkerUI(QWidget):
                 "progress": 0,
                 "started_at": None,
                 "memory_used_mb": 0,
-                "output": None
+                "output": None,
+                "name": task_name
             }
         # Schedule UI updates on the Qt main thread
         QTimer.singleShot(0, self._refresh_tasks_display)
         QTimer.singleShot(0, self._refresh_output_display)
 
         def run_task():
-            self._set_task_state(task_id, status="running", progress=0, started_at=time.time())
-            self.log(f"▶️ Task started: {task_id[:8]}...")
+            start_time = time.time()
+            start_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
+            self._set_task_state(task_id, status="running", progress=0, started_at=start_time)
+            self.log(f"▶️ Task started: '{task_name}' [ID: {task_id[:8]}...] at {start_time_str}")
             self.send_progress_update(task_id, 0)
 
             def progress_with_log(pct):
                 # Log significant progress milestones
                 if pct in [25, 50, 75]:
-                    self.log(f"⏳ Task {task_id[:8]}... progress: {pct}%")
+                    self.log(f"⏳ Task '{task_name}' [{task_id[:8]}...] progress: {pct}%")
                 self.send_progress_update(task_id, pct)
             
             result = self.task_executor.execute_task(
@@ -697,12 +729,27 @@ class WorkerUI(QWidget):
             progress_final = 100 if result.get("success") else max(0, min(99, self._get_task_progress(task_id)))
             self.send_progress_update(task_id, progress_final)
             
-            # Log task completion or failure
+            # Calculate execution time
+            end_time = time.time()
+            end_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time))
+            execution_time = result.get("execution_time", end_time - start_time)
+            memory_used = result.get("memory_used", 0)
+            
+            # Log task completion or failure with detailed information
             if result.get("success"):
-                self.log(f"✅ Task completed: {task_id[:8]}... (100%)")
+                self.log(f"✅ Task completed: '{task_name}' [ID: {task_id[:8]}...]")
+                self.log(f"   ⏱️  Ended at: {end_time_str}")
+                self.log(f"   ⏱️  Execution time: {execution_time:.2f}s")
+                self.log(f"   💾 Memory used: {memory_used:.2f} MB")
+                self.log(f"   ✓ Status: SUCCESS (100%)")
             else:
                 error_msg = result.get("error", "Unknown error")
-                self.log(f"❌ Task failed: {task_id[:8]}... - {error_msg[:50]}")
+                self.log(f"❌ Task failed: '{task_name}' [ID: {task_id[:8]}...]")
+                self.log(f"   ⏱️  Ended at: {end_time_str}")
+                self.log(f"   ⏱️  Execution time: {execution_time:.2f}s")
+                self.log(f"   💾 Memory used: {memory_used:.2f} MB")
+                self.log(f"   ✗ Error: {error_msg[:100]}")
+            self.log("─" * 60)  # Separator line for readability
 
             # Build output text
             output_parts = []
