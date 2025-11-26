@@ -50,6 +50,9 @@ This project demonstrates modern distributed computing concepts with professiona
 ### Technical Features:
 
 - **JSON-over-TCP Protocol**: Simple and reliable communication between master and workers
+- **Automatic Retry Logic**: 3-attempt connection retry with 2-second delays for reliability
+- **TCP Keep-Alive & Low Latency**: Optimized socket configuration for responsive communication
+- **Smart Port Binding**: Automatic retry on port conflicts with graceful error handling
 - **Multi-threading**: Concurrent task execution and UI responsiveness
 - **Cross-platform**: Works on Windows, Linux, and macOS
 - **Modern GUI**: PyQt5-based interface with animations and system tray integration
@@ -295,3 +298,59 @@ Worker:
 
 - Configure which resources to share and set limits.
 - Start the worker service and copy the displayed IP:PORT to the Master.
+
+## 🔧 Troubleshooting Connection Issues
+
+### Connection Failures
+
+The system now has **automatic retry logic** (3 attempts with 2-second delays) to handle temporary connection issues.
+
+**If Master cannot connect to Worker:**
+
+1. **Close all WinLink instances:**
+
+   ```powershell
+   taskkill /F /IM python.exe /T
+   ```
+
+2. **Start in correct order:**
+
+   - **Worker PC first:** `python launch_enhanced.py --role worker` → Click "Start Worker"
+   - **Wait 10 seconds** for Worker broadcast to stabilize
+   - **Master PC second:** `python launch_enhanced.py --role master`
+   - **Wait 10-15 seconds** for automatic discovery
+
+3. **Connect:**
+   - Check worker in "Discovered Workers" list → Click "Connect Selected"
+   - OR manually enter Worker's IP:Port → Click "Connect to Worker"
+
+### Common Issues:
+
+**Port Already in Use:**
+
+```powershell
+# Check what's using port 3000
+netstat -ano | findstr :3000
+# Kill the process or use a different port
+```
+
+**Firewall Blocking (First Time Setup):**
+
+```powershell
+# Run PowerShell as Administrator
+netsh advfirewall firewall add rule name="WinLink Worker" dir=in action=allow protocol=TCP localport=3000-3100 enable=yes
+netsh advfirewall firewall add rule name="WinLink Discovery" dir=in action=allow protocol=UDP localport=5000 enable=yes
+```
+
+**Network Issues:**
+
+- Ensure both PCs on same network (same subnet)
+- Test connectivity: `ping <worker-ip>`
+- Disable VPN if active
+
+### Best Practices:
+
+1. **Always start Worker PC first**
+2. **Wait 10 seconds** after starting Worker
+3. **Use auto-discovery** when possible
+4. **Check console output** for error messages

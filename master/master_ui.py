@@ -946,11 +946,25 @@ class MasterUI(QtWidgets.QWidget):
                 f"Already connected to {worker_id}")
             return
         
+        # Show connecting message
+        self.resource_display.setPlainText(f"🔄 Connecting to {worker_id}...\n\nRetrying up to 3 times if needed...")
+        QtWidgets.QApplication.processEvents()
+        
         connected = self.network.connect_to_worker(worker_id, ip, int(port))
         if not connected:
-            QtWidgets.QMessageBox.critical(self, "Connection Failed", f"Could not connect to {worker_id}")
+            error_msg = (
+                f"Failed to connect to {worker_id} after 3 attempts\n\n"
+                "Common fixes:\n"
+                "1. Ensure Worker app is running and 'Start Worker' is clicked\n"
+                "2. Check Worker's console shows: '✅ Server started successfully'\n"
+                "3. Verify both PCs are on the same network\n"
+                "4. Try waiting 10 more seconds and retry\n\n"
+                "Check console output for detailed error messages."
+            )
+            QtWidgets.QMessageBox.critical(self, "Connection Failed", error_msg)
+            self.resource_display.setPlainText("❌ Connection failed. See error message.")
         else:
-            QtWidgets.QMessageBox.information(self, "Connected", f"Connected to {worker_id}")
+            QtWidgets.QMessageBox.information(self, "Connected", f"✅ Connected to {worker_id}")
             # Request resources immediately and repeatedly to ensure we get data
             self.resource_display.setPlainText(f"✅ Connected to {worker_id}\n\n⏳ Waiting for resource data...")
             QtCore.QTimer.singleShot(300, lambda: self.network.request_resources_from_worker(worker_id))

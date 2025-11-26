@@ -72,33 +72,81 @@ class MasterNetwork:
         """Register a handler for a specific message type"""
         self.message_handlers[message_type] = handler
     
-    def connect_to_worker(self, worker_id: str, ip: str, port: int) -> bool:
-        """Connect to a worker PC"""
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((ip, port))
-            
-            with self.lock:
-                self.workers[worker_id] = sock
-                self.worker_info[worker_id] = {
-                    'ip': ip,
-                    'port': port,
-                    'connected_at': time.time(),
-                    'last_heartbeat': time.time(),
-                    'status': 'connected'
-                }
-            
-            # Start listening for messages from this worker
-            threading.Thread(
-                target=self._listen_to_worker,
-                args=(worker_id, sock),
-                daemon=True
-            ).start()
-            
-            return True
-        except Exception as e:
-            print(f"Failed to connect to worker {worker_id}: {e}")
-            return False
+    def connect_to_worker(self, worker_id: str, ip: str, port: int, retries: int = 3) -> bool:
+        """Connect to a worker PC with retry logic"""
+        for attempt in range(retries):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5.0)  # 5 second timeout for connection
+                
+                # Enable TCP keepalive
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                # Set TCP_NODELAY for low latency
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                
+                if attempt > 0:
+                    print(f"[MASTER] Retry {attempt}/{retries-1}: Connecting to {ip}:{port}...")
+                else:
+                    print(f"[MASTER] Attempting to connect to {ip}:{port}...")
+                
+                sock.connect((ip, port))
+                sock.settimeout(30.0)  # 30 second timeout for operations after connection
+                print(f"[MASTER] Successfully connected to {worker_id}")
+                
+                with self.lock:
+                    self.workers[worker_id] = sock
+                    self.worker_info[worker_id] = {
+                        'ip': ip,
+                        'port': port,
+                        'connected_at': time.time(),
+                        'last_heartbeat': time.time(),
+                        'status': 'connected'
+                    }
+                
+                # Start listening for messages from this worker
+                threading.Thread(
+                    target=self._listen_to_worker,
+                    args=(worker_id, sock),
+                    daemon=True
+                ).start()
+                
+                return True
+                
+            except socket.timeout:
+                if attempt < retries - 1:
+                    print(f"[MASTER] Connection timed out, retrying in 2 seconds...")
+                    time.sleep(2)
+                    continue
+                print(f"[MASTER] Connection to {worker_id} timed out after {retries} attempts.")
+                print(f"[MASTER] Worker may not be running or firewall is blocking.")
+                return False
+                
+            except ConnectionRefusedError:
+                if attempt < retries - 1:
+                    print(f"[MASTER] Connection refused, retrying in 2 seconds...")
+                    time.sleep(2)
+                    continue
+                print(f"[MASTER] Connection refused to {worker_id}. Worker is not listening on this port.")
+                return False
+                
+            except OSError as e:
+                if e.errno == 10061:  # Connection refused (Windows)
+                    if attempt < retries - 1:
+                        print(f"[MASTER] Worker not ready, retrying in 2 seconds...")
+                        time.sleep(2)
+                        continue
+                print(f"[MASTER] Network error connecting to {worker_id}: {e}")
+                return False
+                
+            except Exception as e:
+                if attempt < retries - 1:
+                    print(f"[MASTER] Connection failed: {e}, retrying in 2 seconds...")
+                    time.sleep(2)
+                    continue
+                print(f"[MASTER] Failed to connect to worker {worker_id} after {retries} attempts: {e}")
+                return False
+        
+        return False
     
     def disconnect_worker(self, worker_id: str):
         """Disconnect from a worker"""
@@ -297,27 +345,68 @@ class WorkerNetwork:
     
     def start_server(self, port: int) -> bool:
         """Start server to accept connections from master"""
-        try:
-            self.ip = socket.gethostbyname(socket.gethostname())
-            self.port = port
-            
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.server_socket.bind((self.ip, port))
-            self.server_socket.listen(1)
-            
-            self.running = True
-            
-            # Start accepting connections
-            threading.Thread(target=self._accept_connections, daemon=True).start()
-            
-            # Start broadcasting presence
-            self._start_broadcast()
-            
-            return True
-        except Exception as e:
-            print(f"Failed to start worker server: {e}")
-            return False
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                self.ip = socket.gethostbyname(socket.gethostname())
+                self.port = port
+                
+                self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                
+                # Windows-specific socket options for better port reuse
+                try:
+                    # SO_EXCLUSIVEADDRUSE = 0 allows immediate port reuse
+                    self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 0)
+                except (AttributeError, OSError):
+                    pass  # Not on Windows or not supported
+                
+                # Set socket to non-blocking for better control
+                self.server_socket.settimeout(1.0)
+                
+                print(f"[WORKER] Binding to {self.ip}:{port} (attempt {retry + 1}/{max_retries})")
+                self.server_socket.bind(('0.0.0.0', port))  # Listen on all interfaces
+                self.server_socket.listen(10)  # Allow up to 10 pending connections
+                print(f"[WORKER] ✅ Server started successfully on {self.ip}:{port}")
+                print(f"[WORKER] Ready to accept connections from Master PC")
+                
+                self.running = True
+                
+                # Start accepting connections
+                threading.Thread(target=self._accept_connections, daemon=True).start()
+                
+                # Start broadcasting presence
+                self._start_broadcast()
+                
+                return True
+                
+            except OSError as e:
+                if e.errno == 10048 or e.errno == 48:  # Address already in use (Windows/Unix)
+                    if retry < max_retries - 1:
+                        print(f"[WORKER] Port {port} is in use, waiting 3 seconds for release...")
+                        time.sleep(3)
+                        continue
+                    print(f"[WORKER] ❌ Port {port} is still in use after {max_retries} attempts.")
+                    print(f"[WORKER] Solution: Run 'restart_clean.bat' or use a different port.")
+                    return False
+                elif e.errno == 10049:  # Cannot assign requested address
+                    print(f"[WORKER] ❌ Cannot bind to {self.ip}:{port} - invalid address")
+                    return False
+                else:
+                    print(f"[WORKER] ❌ Socket error: {e}")
+                    if retry < max_retries - 1:
+                        time.sleep(2)
+                        continue
+                    return False
+                    
+            except Exception as e:
+                print(f"[WORKER] ❌ Failed to start worker server: {e}")
+                if retry < max_retries - 1:
+                    time.sleep(2)
+                    continue
+                return False
+        
+        return False
     
     def _start_broadcast(self):
         """Start broadcasting worker presence via UDP"""
@@ -358,28 +447,44 @@ class WorkerNetwork:
     
     def _accept_connections(self):
         """Accept connections from master"""
+        print(f"[WORKER] Listening for Master connections...")
         try:
             while self.running:
-                self.client_socket, addr = self.server_socket.accept()
-                print(f"Master connected from {addr}")
-                
-                # Call connection callback if set
-                if self.connection_callback:
-                    self.connection_callback(addr)
-                
-                # Send ready message
-                ready_msg = NetworkMessage(MessageType.READY, {
-                    'worker_id': f"{self.ip}:{self.port}",
-                    'capabilities': ['computation', 'data_analysis']
-                })
-                self.client_socket.send(ready_msg.to_json().encode() + b'\n')
-                
-                # Start listening for messages
-                threading.Thread(target=self._listen_to_master, daemon=True).start()
+                try:
+                    self.client_socket, addr = self.server_socket.accept()
+                    
+                    # Configure client socket
+                    self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                    self.client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    self.client_socket.settimeout(30.0)  # 30 second timeout for operations
+                    
+                    print(f"[WORKER] ✅ Master connected from {addr[0]}:{addr[1]}")
+                    
+                    # Call connection callback if set
+                    if self.connection_callback:
+                        self.connection_callback(addr)
+                    
+                    # Send ready message
+                    ready_msg = NetworkMessage(MessageType.READY, {
+                        'worker_id': f"{self.ip}:{self.port}",
+                        'capabilities': ['computation', 'data_analysis']
+                    })
+                    self.client_socket.send(ready_msg.to_json().encode() + b'\n')
+                    
+                    # Start listening for messages
+                    threading.Thread(target=self._listen_to_master, daemon=True).start()
+                    
+                except socket.timeout:
+                    # Timeout on accept() is normal, allows checking self.running
+                    continue
+                except Exception as e:
+                    if self.running:
+                        print(f"[WORKER] Error accepting connection: {e}")
+                        time.sleep(1)  # Brief pause before retrying
                 
         except Exception as e:
             if self.running:
-                print(f"Error accepting connections: {e}")
+                print(f"[WORKER] Fatal error in accept loop: {e}")
     
     def _listen_to_master(self):
         """Listen for messages from master"""
@@ -444,20 +549,35 @@ class WorkerNetwork:
     
     def stop(self):
         """Stop the worker network"""
+        print("[WORKER] Stopping network...")
         self.running = False
         self.broadcasting = False
+        
+        # Stop broadcast socket
         if self.broadcast_socket:
             try:
                 self.broadcast_socket.close()
             except:
                 pass
+            self.broadcast_socket = None
+        
+        # Stop client connection
         if self.client_socket:
             try:
+                self.client_socket.shutdown(socket.SHUT_RDWR)
                 self.client_socket.close()
             except:
                 pass
+            self.client_socket = None
+        
+        # Stop server socket
         if self.server_socket:
             try:
                 self.server_socket.close()
             except:
                 pass
+            self.server_socket = None
+        
+        # Give the OS time to release the port
+        time.sleep(0.5)
+        print("[WORKER] Network stopped")
