@@ -187,11 +187,6 @@ class TaskExecutor:
                 "battery_plugged": battery.power_plugged if battery else None,
             }
             
-            print(f"[TASK_EXECUTOR] Collected resources: CPU={resources['cpu_percent']:.1f}%, RAM Available={resources['memory_available_mb']:.0f}MB, Disk Free={resources['disk_free_gb']:.1f}GB")
-            
             return resources
         except Exception as e:
-            print(f"[ERROR] Failed to get system resources: {e}")
-            import traceback
-            traceback.print_exc()
             return {}

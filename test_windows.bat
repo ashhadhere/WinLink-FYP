@@ -85,7 +85,7 @@ REM ====================================================================
     echo.
     echo Starting WinLink Main Application...
     echo Opening role selection interface...
-    python main.py
+    python launch_enhanced.py
     goto :eof
 
 :launch_master

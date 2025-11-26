@@ -54,19 +54,15 @@ class WorkerUI(QWidget):
         self.setup_ui()
         self.update_ip()
         self.start_monitoring_thread()
+        # Initial resource update to populate immediately
+        QTimer.singleShot(100, self.update_resources_now)
 
     def handle_resource_request(self, data):
         try:
-            self.log("📊 Resource request received from master")
             resource_data = self.task_executor.get_system_resources()
-            self.log(f"📤 Sending resources: CPU={resource_data.get('cpu_percent', 0):.1f}%, RAM={resource_data.get('memory_available_mb', 0):.0f}MB available")
-            success = self.network.send_resource_data(resource_data)
-            if success:
-                self.log("✅ Resource data sent successfully")
-            else:
-                self.log("❌ Failed to send resource data")
+            self.network.send_resource_data(resource_data)
         except Exception as e:
-            self.log(f"❌ Error in handle_resource_request: {e}")
+            pass
 
     def handle_heartbeat(self, data):
         msg = NetworkMessage(MessageType.HEARTBEAT_RESPONSE, {
@@ -432,10 +428,11 @@ class WorkerUI(QWidget):
         ov.addWidget(self.task_output_display)
         layout.addWidget(output_gb)
 
-        # System Resources
-        res_gb = QGroupBox("System Resources")
+        # System Resources - Enhanced UI
+        res_gb = QGroupBox("💻 System Resources (Real-time)")
         rv = QVBoxLayout(res_gb)
-        rv.setContentsMargins(8, 20, 8, 8)
+        rv.setContentsMargins(12, 20, 12, 12)
+        rv.setSpacing(12)
 
         # Build and stash bar layouts
         self.cpu_bar_layout  = self._make_bar("CPU Usage:",    "#00f5a0")
@@ -454,15 +451,40 @@ class WorkerUI(QWidget):
         self.disk_bar   = self.disk_bar_layout.itemAt(1).widget()
         self.disk_label = self.disk_bar_layout.itemAt(2).widget()
 
+        # Separator line for better visual separation
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background: rgba(255, 255, 255, 0.1); margin: 8px 0px;")
+        rv.addWidget(separator)
+
+        # Resource details with better styling
+        details_label = QLabel("📊 Detailed System Information:")
+        details_label.setObjectName("infoLabel")
+        details_label.setStyleSheet("font-size: 10pt; font-weight: bold; color: #00f5a0; margin-top: 5px;")
+        rv.addWidget(details_label)
+
         self.res_details = QTextEdit()
         self.res_details.setReadOnly(True)
-        self.res_details.setMinimumHeight(80)  # Increased height
-        self.res_details.setMaximumHeight(120)  # Increased max height
+        self.res_details.setMinimumHeight(120)  # Better height
+        self.res_details.setMaximumHeight(180)  # Better max height
         # Enhanced font for resource details
         res_font = self.res_details.font()
-        res_font.setPointSize(10)
-        res_font.setFamily("Segoe UI")
+        res_font.setPointSize(9)
+        res_font.setFamily("Consolas")
         self.res_details.setFont(res_font)
+        # Better styling for resource details
+        self.res_details.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(20, 25, 35, 0.95);
+                color: #e8e8e8;
+                border: 2px solid rgba(0, 245, 160, 0.3);
+                border-radius: 8px;
+                padding: 10px;
+                font-size: 9pt;
+                line-height: 1.5;
+            }
+        """)
         rv.addWidget(self.res_details)
 
         layout.addWidget(res_gb)
@@ -482,7 +504,7 @@ class WorkerUI(QWidget):
         self.task_log.setPlainText("📝 Task execution log will appear here...")
         # Enhanced font and styling for task log
         log_font = self.task_log.font()
-        log_font.setPointSize(11)  # Slightly larger font
+        log_font.setPointSize(9)  # Slightly larger font
         log_font.setFamily("Consolas")  # Monospace for log readability
         self.task_log.setFont(log_font)
         # Better styling for the log area
@@ -493,7 +515,7 @@ class WorkerUI(QWidget):
                 border: 2px solid rgba(100, 255, 160, 0.3);
                 border-radius: 10px;
                 padding: 12px;
-                font-size: 11pt;
+                font-size: 9pt;
                 line-height: 1.4;
             }
             QTextEdit:focus {
@@ -557,21 +579,48 @@ class WorkerUI(QWidget):
 
     def _make_bar(self, text, color):
         h = QHBoxLayout()
+        h.setSpacing(10)
+        
+        # Label with better styling
         lbl = QLabel(text)
         lbl.setMinimumWidth(110)
         lbl.setObjectName("infoLabel")
+        lbl_font = lbl.font()
+        lbl_font.setPointSize(10)
+        lbl_font.setBold(True)
+        lbl.setFont(lbl_font)
+        lbl.setStyleSheet("color: #e6e6fa; font-size: 10pt;")
 
+        # Progress bar with enhanced styling
         bar = QProgressBar()
         bar.setTextVisible(False)
-        bar.setMaximumHeight(18)
-        bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; border-radius: 9px; }}")
+        bar.setMaximumHeight(20)
+        bar.setMinimumHeight(20)
+        bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: rgba(255, 255, 255, 0.05);
+                border: 2px solid rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {color}, stop:1 {color}CC);
+                border-radius: 8px;
+            }}
+        """)
 
+        # Value label with consistent font
         val = QLabel("0%")
-        val.setMinimumWidth(40)
-        val.setAlignment(Qt.AlignCenter)
+        val.setMinimumWidth(110)
+        val.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        val_font = val.font()
+        val_font.setPointSize(10)
+        val_font.setBold(True)
+        val.setFont(val_font)
+        val.setStyleSheet("color: #ffffff; font-size: 10pt; padding-left: 5px;")
 
         h.addWidget(lbl)
-        h.addWidget(bar)
+        h.addWidget(bar, 1)  # Bar stretches
         h.addWidget(val)
         return h
 
@@ -621,12 +670,8 @@ class WorkerUI(QWidget):
         payload = data.get("data", {})
 
         if not task_id or not code:
-            self.log("Received malformed task request.")
             self._send_error_to_master(task_id or "unknown", "Invalid task payload received by worker.")
             return
-
-        self.log(f"📥 Received task: {task_id}")
-        self.log(f"   Code length: {len(code)} chars, Data keys: {list(payload.keys()) if payload else 'none'}")
         
         # Immediately show the task in the UI - ensure it's visible right away
         with self.tasks_lock:
@@ -642,7 +687,6 @@ class WorkerUI(QWidget):
         QTimer.singleShot(0, self._refresh_output_display)
 
         def run_task():
-            self.log(f"▶️ Starting execution of task: {task_id}")
             self._set_task_state(task_id, status="running", progress=0, started_at=time.time())
             self.send_progress_update(task_id, 0)
 
@@ -651,14 +695,6 @@ class WorkerUI(QWidget):
                 payload,
                 progress_callback=lambda pct: self.send_progress_update(task_id, pct)
             )
-
-            # Log execution result details
-            self.log(f"🔍 Task {task_id} execution completed:")
-            self.log(f"   Success: {result.get('success')}")
-            self.log(f"   Result type: {type(result.get('result')).__name__}")
-            self.log(f"   Has stdout: {bool(result.get('stdout'))}")
-            self.log(f"   Has stderr: {bool(result.get('stderr'))}")
-            self.log(f"   Has error: {bool(result.get('error'))}")
 
             status = "done" if result.get("success") else "failed"
             progress_final = 100 if result.get("success") else max(0, min(99, self._get_task_progress(task_id)))
@@ -717,18 +753,6 @@ class WorkerUI(QWidget):
             }
             self.network.send_task_result(task_id, result_payload)
 
-            if result.get("success"):
-                exec_time = result.get("execution_time", 0)
-                self.log(f"✅ Task {task_id} completed successfully!")
-                self.log(f"   Execution time: {exec_time:.2f}s")
-                self.log(f"   Memory used: {memory_used_mb:.1f}MB")
-                if result.get("stdout"):
-                    self.log(f"   Output: {result['stdout'][:100]}...")
-            else:
-                error_msg = result.get('error', 'Unknown error')
-                self.log(f"❌ Task {task_id} failed!")
-                self.log(f"   Error: {error_msg}")
-
             self._set_task_state(
                 task_id, 
                 status=status, 
@@ -776,19 +800,35 @@ class WorkerUI(QWidget):
                 time.sleep(3)
                 try:
                     stats = self.task_executor.get_system_resources()
-                    QTimer.singleShot(0, lambda s=stats: self._update_resources(s))
+                    if stats:
+                        # Create a new method invocation each time to avoid capture issues
+                        from functools import partial
+                        callback = partial(self._update_resources, stats.copy())
+                        QTimer.singleShot(0, callback)
                 except Exception as exc:
-                    self.log(f"Resource monitor error: {exc}")
+                    pass
         threading.Thread(target=monitor, daemon=True).start()
 
+    def update_resources_now(self):
+        """Force an immediate resource update"""
+        try:
+            stats = self.task_executor.get_system_resources()
+            if stats:
+                self._update_resources(stats)
+        except Exception as exc:
+            pass
+
     def _update_resources(self, r):
+        """Update UI with real-time resource data"""
+        if not r:
+            return
+            
         cpu = r.get('cpu_percent', 0.0)
         mem = r.get('memory_percent', 0.0)
         disk = r.get('disk_percent', 0.0)
         battery = r.get('battery_percent')
         plugged = r.get('battery_plugged')
 
-        self.cpu_bar.setValue(int(cpu))
         # Read configured limits
         try:
             cpu_limit_val = int(self.cpu_limit.value())
@@ -800,16 +840,17 @@ class WorkerUI(QWidget):
             mem_limit_val = 8192
 
         # Update bars with actual usage
-        self.cpu_bar.setValue(int(cpu))
-        # Show both actual and configured limit in the label for clarity
-        capped_cpu = min(cpu, cpu_limit_val)
-        self.cpu_label.setText(f"{cpu:.1f}% (limit {cpu_limit_val}%)")
+        try:
+            self.cpu_bar.setValue(int(cpu))
+            self.cpu_label.setText(f"{cpu:.1f}% (limit {cpu_limit_val}%)")
 
-        self.mem_bar.setValue(int(mem))
-        # mem is a percent; show percent and limit in MB
-        self.mem_label.setText(f"{mem:.1f}% (limit {mem_limit_val} MB)")
-        self.disk_bar.setValue(int(disk))
-        self.disk_label.setText(f"{disk:.1f}%")
+            self.mem_bar.setValue(int(mem))
+            self.mem_label.setText(f"{mem:.1f}% (limit {mem_limit_val} MB)")
+            
+            self.disk_bar.setValue(int(disk))
+            self.disk_label.setText(f"{disk:.1f}%")
+        except Exception as e:
+            pass
 
         battery_str = "Unavailable"
         if battery is not None:
@@ -824,23 +865,42 @@ class WorkerUI(QWidget):
             for task_meta in self.current_tasks.values():
                 task_memory_mb += task_meta.get('memory_used_mb', 0)
         
+        # Get additional real-time metrics
+        mem_total_gb = psutil.virtual_memory().total / (1024**3)
+        mem_used_gb = psutil.virtual_memory().used / (1024**3)
+        mem_available_mb = r.get('memory_available_mb', 0)
+        disk_free_gb = r.get('disk_free_gb', 0)
+        
+        # CPU per-core usage (if available)
+        try:
+            cpu_per_core = psutil.cpu_percent(interval=0, percpu=True)
+            cpu_cores_info = ", ".join([f"{c:.0f}%" for c in cpu_per_core[:4]])  # Show first 4 cores
+            if len(cpu_per_core) > 4:
+                cpu_cores_info += "..."
+        except:
+            cpu_cores_info = "N/A"
+        
         details = (
-            f"CPU Cores: {psutil.cpu_count()}\n"
-            f"Total Memory: {psutil.virtual_memory().total / (1024**3):.2f} GB\n"
-            f"Available Memory: {r.get('memory_available_mb', 0):.0f} MB\n"
-            f"Memory Used by Tasks: {task_memory_mb:.1f} MB\n"
-            f"Free Disk Space: {r.get('disk_free_gb', 0):.1f} GB\n"
+            f"🖥️ SYSTEM RESOURCES (Real-time)\n"
+            f"{'='*35}\n"
+            f"CPU:\n"
+            f"  Cores: {psutil.cpu_count(logical=False)} Physical, {psutil.cpu_count()} Logical\n"
+            f"  Usage: {cpu:.1f}% (Per-core: {cpu_cores_info})\n"
+            f"  Configured Limit: {cpu_limit_val}%\n"
+            f"\n"
+            f"Memory:\n"
+            f"  Total: {mem_total_gb:.2f} GB\n"
+            f"  Used: {mem_used_gb:.2f} GB ({mem:.1f}%)\n"
+            f"  Available: {mem_available_mb:.0f} MB\n"
+            f"  Tasks Memory: {task_memory_mb:.1f} MB\n"
+            f"  Configured Limit: {mem_limit_val} MB\n"
+            f"\n"
+            f"Disk:\n"
+            f"  Usage: {disk:.1f}%\n"
+            f"  Free Space: {disk_free_gb:.1f} GB\n"
+            f"\n"
             f"Battery: {battery_str}\n"
             f"Active Tasks: {active_tasks}"
-        )
-        # Append configured limits and effective (capped) values
-        details += (
-            f"\n\nConfigured Limits:\n"
-            f" - Max CPU: {cpu_limit_val}%\n"
-            f" - Max Memory: {mem_limit_val} MB\n"
-            f"\nEffective Usage:\n"
-            f" - CPU (actual / capped): {cpu:.1f}% / {min(cpu, cpu_limit_val):.1f}%\n"
-            f" - Memory (percent): {mem:.1f}% (Limit in MB shown above)"
         )
         self.res_details.setPlainText(details)
 
@@ -955,7 +1015,7 @@ class WorkerUI(QWidget):
             time.sleep(0.1)
             self.network.stop()
         except Exception as ex:
-            print(f"Error during cleanup: {ex}")
+            pass
         finally:
             e.accept()
 
